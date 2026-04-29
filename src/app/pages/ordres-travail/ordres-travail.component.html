@@ -1,0 +1,250 @@
+<div class="page-container">
+  <div class="page-header">
+    <h1>Ordres de travail</h1>
+    <p class="page-description">Gestion des ordres de travail et suivi de production</p>
+  </div>
+  
+  <!-- Messages de succès/erreur -->
+  <div class="alert alert-success alert-dismissible" *ngIf="successMessage">
+    {{ successMessage }}
+    <button type="button" class="btn-close" (click)="clearMessages()"></button>
+  </div>
+  
+  <div class="alert alert-error alert-dismissible" *ngIf="errorMessage">
+    {{ errorMessage }}
+    <button type="button" class="btn-close" (click)="clearMessages()"></button>
+  </div>
+  
+  <div class="page-content">
+    <div class="content-card">
+      <div class="card-header">
+        <h2>Liste des Ordres de travail</h2>
+        <div class="card-actions">
+          <button class="btn btn-primary" (click)="openCreateModal()">
+            <span>+</span> Ajouter un ordre
+          </button>
+        </div>
+      </div>
+      
+      <!-- Filtres de recherche -->
+      <div class="filters-section">
+        <div class="filters-header">
+          <h3>Filtres</h3>
+          <button class="btn btn-sm btn-secondary" (click)="statutFilter=''; machineFilter=''; searchFilter=''; applyFilters()">Réinitialiser</button>
+        </div>
+        
+        <div class="filters-grid">
+          <!-- Filtre par statut -->
+          <div class="filter-group">
+            <label for="statutFilter">Statut</label>
+            <select id="statutFilter" class="form-control" [(ngModel)]="statutFilter" (change)="applyFilters()">
+              <option value="">Tous les statuts</option>
+              <option *ngFor="let statut of statutsPossibles" [value]="statut">
+                {{ getStatutLabel(statut) }}
+              </option>
+            </select>
+          </div>
+          
+          <!-- Filtre par machine -->
+          <div class="filter-group">
+            <label for="machineFilter">Machine</label>
+            <select id="machineFilter" class="form-control" [(ngModel)]="machineFilter" (change)="applyFilters()">
+              <option value="">Toutes les machines</option>
+              <option *ngFor="let machine of machines" [value]="machine">
+                {{ machine }}
+              </option>
+            </select>
+          </div>
+          
+          <!-- Recherche textuelle -->
+          <div class="filter-group">
+            <label for="searchFilter">Recherche</label>
+            <input type="text" 
+                   id="searchFilter" 
+                   class="form-control" 
+                   placeholder="Numéro ordre ou référence bobine..."
+                   [(ngModel)]="searchFilter"
+                   (input)="applyFilters()">
+          </div>
+        </div>
+        
+        <!-- Résultats -->
+        <div class="filter-results">
+          <span class="result-count">
+            {{ filteredOrdres.length }} ordre(s) trouvé(s)
+          </span>
+        </div>
+      </div>
+      
+      <!-- Loading -->
+      <div class="loading-container" *ngIf="isLoading">
+        <div class="spinner"></div>
+        <p>Chargement des ordres de travail...</p>
+      </div>
+      
+      <!-- Tableau -->
+      <div class="table-container" *ngIf="!isLoading">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Machine</th>
+              <th>Numéro ordre</th>
+              <th>Référence bobine</th>
+              <th>Opérateur</th>
+              <th>Quantité</th>
+              <th>Statut</th>
+              <th>Date création</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngIf="filteredOrdres.length === 0">
+              <td colspan="9" class="text-center">
+                {{ ordresTravail.length === 0 ? 'Aucun ordre de travail trouvé' : 'Aucun résultat pour les filtres appliqués' }}
+              </td>
+            </tr>
+            <tr *ngFor="let ordre of filteredOrdres">
+              <td>{{ ordre.id }}</td>
+              <td>{{ ordre.idMachine || '-' }}</td>
+              <td>
+                <strong>{{ ordre.numeroOrdre }}</strong>
+              </td>
+              <td>{{ ordre.referenceBobine }}</td>
+              <td>{{ getUtilisateurName(ordre.utilisateurId) }}</td>
+              <td>{{ ordre.quantiteRequise }}</td>
+              <td>
+                <span class="status-badge" [class]="getStatutClass(ordre.statut)">
+                  {{ getStatutLabel(ordre.statut) }}
+                </span>
+              </td>
+              <td>{{ ordre.dateCreation | date:'dd/MM/yyyy HH:mm' }}</td>
+              <td class="actions">
+                <button class="btn btn-sm btn-secondary" 
+                        (click)="openEditModal(ordre)"
+                        title="Modifier">
+                  <span>Modifier</span>
+                </button>
+                <button class="btn btn-sm btn-danger" 
+                        (click)="deleteOrdreTravail(ordre)"
+                        title="Supprimer">
+                  <span>Supprimer</span>
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal d'ajout/modification -->
+<div class="modal-overlay" *ngIf="showModal" (click)="closeModal()">
+  <div class="modal-container" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h3>{{ isEditMode ? 'Modifier l\'ordre de travail' : 'Ajouter un ordre de travail' }}</h3>
+      <button class="modal-close" (click)="closeModal()">&times;</button>
+    </div>
+    
+    <div class="modal-body">
+      <form id="ordreForm" (ngSubmit)="save()">
+        <div class="g-3">
+          <div class="form-group">
+            <label for="formIdMachine">Machine *</label>
+            <input type="text" 
+                   id="formIdMachine" 
+                   class="form-control" 
+                   [class.is-valid]="validateMachineFormat()"
+                   [class.is-invalid]="formIdMachine && !validateMachineFormat()"
+                   [(ngModel)]="formIdMachine" 
+                   name="formIdMachine"
+                   placeholder="MACHINE_"
+                   (keydown)="onMachineKeyDown($event)"
+                   (input)="formatMachine()"
+                   required>
+                      </div>
+          
+          <div class="form-group">
+            <label for="formReferenceBobine">Référence bobine *</label>
+            <input type="text" 
+                   id="formReferenceBobine" 
+                   class="form-control" 
+                   [class.is-valid]="validateReferenceBobineFormat()"
+                   [class.is-invalid]="formReferenceBobine && !validateReferenceBobineFormat()"
+                   [(ngModel)]="formReferenceBobine" 
+                   name="formReferenceBobine"
+                   placeholder="REF-"
+                   (keydown)="onReferenceBobineKeyDown($event)"
+                   (input)="formatReferenceBobine()"
+                   required>
+          </div>
+          
+          <div class="form-group">
+            <label for="formUtilisateurId">Opérateur *</label>
+            <select id="formUtilisateurId" 
+                    class="form-control" 
+                    [(ngModel)]="formUtilisateurId" 
+                    name="formUtilisateurId"
+                    required>
+              <option value="">Sélectionner un opérateur</option>
+              <option *ngFor="let operateur of getOperateurs()" 
+                      [value]="operateur.id">
+                {{ operateur.nomUtilisateur }} ({{ operateur.codeBadge || 'N/A' }})
+              </option>
+            </select>
+          </div>
+          
+          <div class="form-group">
+            <label for="formQuantiteRequise">Quantité requise *</label>
+            <input type="number" 
+                   id="formQuantiteRequise" 
+                   class="form-control" 
+                   [(ngModel)]="formQuantiteRequise" 
+                   name="formQuantiteRequise"
+                   min="1" required>
+          </div>
+          
+          <div class="form-group" *ngIf="isEditMode">
+            <label for="formStatut">Statut</label>
+            <select id="formStatut" 
+                    class="form-control" 
+                    [(ngModel)]="formStatut" 
+                    name="formStatut">
+              <option *ngFor="let statut of statutsPossibles" 
+                      [value]="statut">
+                {{ getStatutLabel(statut) }}
+              </option>
+            </select>
+          </div>
+        </div>
+      </form>
+    </div>
+    
+    <div class="modal-footer">
+      <button type="button" class="btn btn-secondary" (click)="closeModal()">Annuler</button>
+      <button type="button" class="btn btn-primary" (click)="save()">
+        {{ isEditMode ? 'Enregistrer' : 'Créer' }}
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de confirmation de suppression -->
+<div class="modal-overlay" *ngIf="showConfirmModal" (click)="closeConfirmModal()">
+  <div class="modal-container modal-sm" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h3>Confirmation de suppression</h3>
+    </div>
+    
+    <div class="modal-body">
+      <p>Êtes-vous sûr de vouloir supprimer l'ordre de travail <strong>{{ confirmOrdre?.numeroOrdre }}</strong> ?</p>
+      <p class="warning">Cette action est irréversible.</p>
+    </div>
+    
+    <div class="modal-footer">
+      <button type="button" class="btn btn-secondary" (click)="closeConfirmModal()">Annuler</button>
+      <button type="button" class="btn btn-danger" (click)="confirmActionExecute()">Supprimer</button>
+    </div>
+  </div>
+</div>

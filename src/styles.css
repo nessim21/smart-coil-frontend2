@@ -1,0 +1,16 @@
+/* Global styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Roboto', 'Open Sans', sans-serif;
+  background-color: #f5f5f5;
+  line-height: 1.6;
+}
+
+html, body {
+  height: 100%;
+}

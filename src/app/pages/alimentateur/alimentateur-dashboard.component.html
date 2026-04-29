@@ -1,0 +1,783 @@
+<div class="page-container">
+  <div class="page-header">
+    <h1>Tableau de bord Alimentateur</h1>
+    <p class="page-description" *ngIf="alimentateurNom">Bienvenue, {{ alimentateurNom }}</p>
+  </div>
+  
+  <!-- Messages -->
+  <div class="alert alert-success alert-dismissible" *ngIf="successMessage">
+    {{ successMessage }}
+    <button type="button" class="btn-close" (click)="clearMessages()"></button>
+  </div>
+  
+  <div class="alert alert-error alert-dismissible" *ngIf="errorMessage">
+    {{ errorMessage }}
+    <button type="button" class="btn-close" (click)="clearMessages()"></button>
+  </div>
+
+  <!-- Loading -->
+  <div class="loading-container" *ngIf="loading">
+    <div class="spinner"></div>
+    <p>Chargement de vos demandes...</p>
+  </div>
+
+  <!-- Contenu principal -->
+  <div class="page-content" *ngIf="!loading">
+    
+    <!-- Statistiques -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon">
+          <span>!</span>
+        </div>
+        <div class="stat-content">
+          <h3>{{ getDemandesUrgentes() }}</h3>
+          <p>Demandes urgentes</p>
+        </div>
+      </div>
+      
+      <div class="stat-card">
+        <div class="stat-icon">
+          <span>!</span>
+        </div>
+        <div class="stat-content">
+          <h3>{{ demandesEnCours.length }}</h3>
+          <p>En cours</p>
+        </div>
+      </div>
+      
+      <div class="stat-card">
+        <div class="stat-icon">
+          <span>!</span>
+        </div>
+        <div class="stat-content">
+          <h3>{{ getNombreTotal() }}</h3>
+          <p>Total demandes</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Filtres -->
+    <div class="content-card">
+      <div class="card-header">
+        <h2>Filtres</h2>
+        <div class="card-actions">
+          <button class="btn btn-secondary btn-sm" (click)="refresh()">
+            <span>Actualiser</span>
+          </button>
+        </div>
+      </div>
+      
+      <div class="filters-grid">
+        <div class="filter-group">
+          <label for="statutFilter">Statut</label>
+          <select id="statutFilter" 
+                  class="form-control" 
+                  [(ngModel)]="statutFilter"
+                  (change)="applyFilters()">
+            <option value="TOUS">Tous</option>
+            <option value="NON_AFFECTEE">Non affectées</option>
+            <option value="EN_COURS">En cours</option>
+            <option value="TERMINEE">Terminées</option>
+          </select>
+        </div>
+        
+        <div class="filter-group">
+          <label for="prioriteFilter">Priorité</label>
+          <select id="prioriteFilter" 
+                  class="form-control" 
+                  [(ngModel)]="prioriteFilter"
+                  (change)="applyFilters()">
+            <option value="TOUS">Toutes</option>
+            <option value="PRIORITAIRE">Urgentes</option>
+            <option value="NORMAL">Normales</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    
+    <!-- Demandes à traiter (NON_AFFECTEE) -->
+    <div class="content-card">
+      <div class="card-header">
+        <h2>Demandes à traiter</h2>
+        <span class="badge">{{ demandesNonAffectees.length }}</span>
+      </div>
+      
+      <div *ngIf="demandesNonAffectees.length > 0" class="table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Référence bobine</th>
+              <th>Priorité</th>
+              <th>Ordre de travail</th>
+              <th>Machine</th>
+              <th>Date affectation</th>
+              <th>Statut bobine</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let demande of demandesNonAffectees">
+              <td>{{ demande.id }}</td>
+              <td>{{ demande.referenceBobine }}</td>
+              <td>
+                <span class="priority-badge" 
+                      [class]="getPrioriteClass(demande.niveauPriorite)">
+                  {{ formatPriorite(demande.niveauPriorite) }}
+                </span>
+              </td>
+              <td>{{ getWorkOrderName(demande.ordreTravailId) }}</td>
+              <td>{{ getMachineForOrder(demande.ordreTravailId) }}</td>
+              <td>{{ formatDate(demande.dateAffectation || demande.dateCreation) }}</td>
+              <td>
+                <span class="status-badge" 
+                      [class]="getBobineStatusClass(demande.bobineId || 0)">
+                  {{ getBobineStatusText(demande.bobineId || 0) }}
+                </span>
+              </td>
+              <td>
+                <div class="actions">
+                  <button class="btn btn-warning btn-sm" 
+                          *ngIf="!demande.bobineId"
+                          (click)="openReservationModal(demande)">
+                    <i class="fas fa-bookmark"></i>
+                    <span>Réserver</span>
+                  </button>
+                                    <button class="btn btn-primary btn-sm" 
+                          *ngIf="isBobineReservee(demande)"
+                          (click)="openPrelevementModal(demande)">
+                    <i class="fas fa-box"></i>
+                    <span>Prélever bobine</span>
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      
+      <div *ngIf="demandesNonAffectees.length === 0" class="no-data">
+        <div class="empty-state">
+          <i class="fas fa-clipboard-list"></i>
+          <h3>Aucune demande à traiter</h3>
+          <p>Toutes les demandes assignées sont déjà en cours ou terminées.</p>
+        </div>
+      </div>
+    </div>
+
+    
+    <!-- Demandes retour à traiter -->
+    <div class="content-card">
+      <div class="card-header">
+        <h2>Demandes retour à traiter</h2>
+        <span class="badge">{{ demandesRetourATraiter.length }}</span>
+      </div>
+      
+      <div *ngIf="loadingDemandesRetour" class="loading-container">
+        <div class="spinner"></div>
+        <p>Chargement des demandes de retour...</p>
+      </div>
+      
+      <div *ngIf="!loadingDemandesRetour && demandesRetourATraiter.length > 0" class="table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>ID Bobine</th>
+              <th>ID Demande</th>
+              <th>Statut</th>
+              <th>Machine</th>
+              <th>Date création</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let retour of demandesRetourATraiter">
+              <td>{{ retour.id }}</td>
+              <td>{{ retour.bobineId || 'Non spécifié' }}</td>
+              <td>{{ retour.demandeId || 'Non spécifié' }}</td>
+              <td>
+                <span class="status-badge" 
+                      [class]="getRetourStatutClass(retour.statut)">
+                  {{ getRetourStatutLabel(retour.statut) }}
+                </span>
+              </td>
+              <td>{{ getRetourMachineFromDemande(retour) }}</td>
+              <td>{{ retour.dateCreation | date:'dd/MM/yyyy HH:mm' }}</td>
+              <td>
+                <div class="actions">
+                  <button class="btn btn-primary btn-sm" 
+                          *ngIf="canExecuteRetour(retour)"
+                          (click)="openExecuteRetourModal(retour)" 
+                          title="Exécuter">
+                    <i class="fas fa-play"></i>
+                    <span>Exécuter</span>
+                  </button>
+                  <button class="btn btn-primary btn-sm" 
+                          (click)="viewRetourDetails(retour)" 
+                          title="Voir détails">
+                    <i class="fas fa-eye"></i>
+                    <span>Détails</span>
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      
+      <div *ngIf="!loadingDemandesRetour && demandesRetourATraiter.length === 0" class="no-data">
+        <div class="empty-state">
+          <i class="fas fa-undo"></i>
+          <h3>Aucune demande de retour à traiter</h3>
+          <p>Aucune demande de retour n'est actuellement assignée pour traitement.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Demandes terminées -->
+    <div class="content-card">
+      <div class="card-header">
+        <h2>Demandes terminées</h2>
+        <span class="badge">{{ demandesTerminees.length }}</span>
+      </div>
+      
+      <div *ngIf="demandesTerminees.length > 0" class="table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Référence bobine</th>
+              <th>Priorité</th>
+              <th>Ordre de travail</th>
+              <th>Machine</th>
+              <th>Date terminaison</th>
+              <th>Statut bobine</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let demande of demandesTerminees">
+              <td>{{ demande.id }}</td>
+              <td>{{ demande.referenceBobine }}</td>
+              <td>
+                <span class="priority-badge" 
+                      [class]="getPrioriteClass(demande.niveauPriorite)">
+                  {{ formatPriorite(demande.niveauPriorite) }}
+                </span>
+              </td>
+              <td>{{ getWorkOrderName(demande.ordreTravailId) }}</td>
+              <td>{{ getMachineForOrder(demande.ordreTravailId) }}</td>
+              <td>{{ formatDate(demande.dateTerminaison || demande.dateCreation) }}</td>
+              <td>
+                <span class="status-badge" 
+                      [class]="getBobineStatusClass(demande.bobineId || 0)">
+                  {{ getBobineStatusText(demande.bobineId || 0) }}
+                </span>
+              </td>
+              <td>
+                <div class="actions">
+                  <!-- Actions disponibles si nécessaire -->
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      
+      <div *ngIf="demandesTerminees.length === 0" class="no-data">
+        <div class="empty-state">
+          <i class="fas fa-check-circle"></i>
+          <h3>Aucune demande terminée</h3>
+          <p>Vous n'avez pas encore terminé de demande.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de réservation de bobine -->
+<div class="modal-overlay" *ngIf="showReservationModal" (click)="closeReservationModal()">
+  <div class="modal-container modal-large" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h3>Réserver une bobine pour la demande #{{ selectedDemande?.id }}</h3>
+      <button class="modal-close" (click)="closeReservationModal()">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    
+    <div class="modal-body">
+      <div class="demande-info">
+        <p><strong>Référence demandée:</strong> {{ selectedDemande?.referenceBobine }}</p>
+        <p><strong>Ordre de travail:</strong> {{ getWorkOrderName(selectedDemande?.ordreTravailId) }}</p>
+        <p><strong>Priorité:</strong> 
+          <span class="priority-badge" 
+                [class]="getPrioriteClass(selectedDemande?.niveauPriorite)">
+            {{ formatPriorite(selectedDemande?.niveauPriorite) }}
+          </span>
+        </p>
+      </div>
+      
+      <div class="zone-selector">
+        <label for="zoneSelect">Sélectionner une zone:</label>
+        <select id="zoneSelect" [(ngModel)]="selectedZone" (change)="onZoneChange()">
+          <option *ngFor="let zone of zones" [value]="zone.codeZone || zone.id">
+            {{ zone.nom || zone.codeZone || zone.id }}
+          </option>
+        </select>
+      </div>
+      
+      <div class="stock-grid-container" *ngIf="!loading && grille.length > 0">
+        <div class="grid-info">
+          <span>Zone: {{ selectedZone }} | {{ grille.length }}×{{ grille[0]?.length || 0 }}</span>
+        </div>
+        
+        <div class="grid-scroll">
+          <table class="stock-grid-table">
+            <thead>
+              <tr>
+                <th></th>
+                <th *ngFor="let colNum of getColonnesAffichees()" class="col-header">
+                  {{ colNum }}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let rangeeNum of getRangeesAffichees()">
+                <th class="row-header">{{ rangeeNum }}</th>
+                <td *ngFor="let colNum of getColonnesAffichees()" 
+                    class="grid-cell"
+                    [ngClass]="getCouleurCellule(grille[rangeeNum - 1][colNum - 1])"
+                    [class.bobine-clignotante]="shouldBobineClignoter(grille[rangeeNum - 1][colNum - 1])"
+                    [class.cell-non-cliquable]="!isCellClickable(grille[rangeeNum - 1][colNum - 1])"
+                    (click)="onBobineClick(grille[rangeeNum - 1][colNum - 1])">
+                  <div class="cell-content">
+                    <div class="cell-coords">
+                      {{ grille[rangeeNum - 1][colNum - 1]?.coordonneeEmplacement }}
+                    </div>
+                    <div class="cell-bobine" *ngIf="grille[rangeeNum - 1][colNum - 1] && grille[rangeeNum - 1][colNum - 1].bobineId">
+                      {{ getBobineReference(grille[rangeeNum - 1][colNum - 1]) }}
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      
+      <div *ngIf="loading" class="loading-message">
+        <i class="fas fa-spinner fa-spin"></i>
+        <p>Chargement de la grille de stockage...</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de confirmation de réservation -->
+<div class="modal-overlay" *ngIf="showConfirmReservationModal" (click)="closeConfirmReservationModal()">
+  <div class="modal-container" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h3>Confirmer la réservation</h3>
+      <button class="modal-close" (click)="closeConfirmReservationModal()">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    
+    <div class="modal-body">
+      <div class="confirmation-details">
+        <h4>Détails de la réservation:</h4>
+        <ul>
+          <li><strong>ID Bobine:</strong> {{ selectedBobine?.id }}</li>
+          <li><strong>Référence:</strong> {{ selectedBobine?.referenceBobine }}</li>
+          <li><strong>Emplacement:</strong> {{ selectedEmplacement?.coordonneeEmplacement }}</li>
+          <li><strong>Demande:</strong> #{{ selectedDemande?.id }} - {{ selectedDemande?.referenceBobine }}</li>
+        </ul>
+      </div>
+      
+      <div class="modal-actions">
+        <button class="btn btn-secondary" (click)="closeConfirmReservationModal()">
+          Annuler
+        </button>
+        <button class="btn btn-warning" (click)="confirmReservation()">
+          <i class="fas fa-bookmark"></i>
+          Confirmer la réservation
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de confirmation pour démarrer une demande -->
+<div class="modal-overlay" *ngIf="showConfirmStartModal" (click)="closeConfirmStartModal()">
+  <div class="modal-container" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h3>Confirmation de démarrage</h3>
+      <button class="modal-close" (click)="closeConfirmStartModal()">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    
+    <div class="modal-body">
+      <p>Êtes-vous sûr de vouloir démarrer cette demande ?</p>
+      <p><strong>ID: {{ demandeToStart?.id }}</strong></p>
+      <p><strong>Référence: {{ demandeToStart?.referenceBobine }}</strong></p>
+    </div>
+    
+    <div class="modal-footer">
+      <button type="button" class="btn btn-secondary" (click)="closeConfirmStartModal()">Annuler</button>
+      <button type="button" class="btn btn-primary" (click)="confirmStart()" [disabled]="isProcessing">
+        <span *ngIf="!isProcessing">Démarrer</span>
+        <span *ngIf="isProcessing">
+          <i class="fas fa-spinner fa-spin"></i> 
+          Démarrage...
+        </span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de confirmation pour terminer une demande -->
+<div class="modal-overlay" *ngIf="showConfirmEndModal" (click)="closeConfirmEndModal()">
+  <div class="modal-container" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h3>Confirmation de terminaison</h3>
+      <button class="modal-close" (click)="closeConfirmEndModal()">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    
+    <div class="modal-body">
+      <p>Êtes-vous sûr de vouloir terminer cette demande ?</p>
+      <p><strong>ID: {{ demandeToEnd?.id }}</strong></p>
+      <p><strong>Référence: {{ demandeToEnd?.referenceBobine }}</strong></p>
+    </div>
+    
+    <div class="modal-footer">
+      <button type="button" class="btn btn-secondary" (click)="closeConfirmEndModal()">Annuler</button>
+      <button type="button" class="btn btn-success" (click)="confirmEnd()" [disabled]="isProcessing">
+        <span *ngIf="!isProcessing">Terminer</span>
+        <span *ngIf="isProcessing">
+          <i class="fas fa-spinner fa-spin"></i> 
+          Terminaison...
+        </span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de prélèvement de bobine -->
+<div class="modal-overlay" *ngIf="showPrelevementModal" (click)="closePrelevementModal()">
+  <div class="modal-container" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h3>Prélever la bobine pour la demande #{{ selectedDemandeForPrelevement?.id }}</h3>
+      <button class="modal-close" (click)="closePrelevementModal()">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label for="bobineId">ID de la bobine à prélever</label>
+        <input type="number" 
+               id="bobineId" 
+               class="form-control" 
+               [(ngModel)]="prelevementBobineId" 
+               placeholder="Entrez l'ID de la bobine">
+      </div>
+      <div class="form-group">
+        <label for="emplacementId">ID de l'emplacement à libérer</label>
+        <input type="number" 
+               id="emplacementId" 
+               class="form-control" 
+               [(ngModel)]="prelevementEmplacementId" 
+               placeholder="Entrez l'ID de l'emplacement">
+      </div>
+      <div class="info-text">
+        <p><strong>Demande #{{ selectedDemandeForPrelevement?.id }}</strong></p>
+        <p>Référence: {{ selectedDemandeForPrelevement?.referenceBobine }}</p>
+        <p>Bobine réservée: ID {{ selectedDemandeForPrelevement?.bobineId }}</p>
+      </div>
+      <div *ngIf="errorMessage" class="error-message">
+        {{ errorMessage }}
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" (click)="closePrelevementModal()">Annuler</button>
+      <button class="btn btn-primary" 
+              (click)="confirmerPrelevement()" 
+              [disabled]="isProcessing || !prelevementBobineId || !prelevementEmplacementId">
+        {{ isProcessing ? 'Traitement...' : 'Confirmer le prélèvement' }}
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de succès de prélèvement -->
+<div class="modal-overlay" *ngIf="showPrelevementSuccessModal" (click)="closePrelevementSuccessModal()">
+  <div class="modal-container modal-success" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h3>Prélèvement effectué avec succès</h3>
+      <button class="modal-close" (click)="closePrelevementSuccessModal()">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="success-icon">
+        <i class="fas fa-check-circle"></i>
+      </div>
+      <div class="success-message">
+        <h4>Le prélèvement a été effectué avec succès !</h4>
+        <p>La bobine ID {{ prelevementBobineId }} a été prélevée et l'emplacement ID {{ prelevementEmplacementId }} a été libéré.</p>
+        <p>La demande #{{ selectedDemandeForPrelevement?.id }} est maintenant en cours de traitement.</p>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-success" (click)="closePrelevementSuccessModal()">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de prélèvement de bobine -->
+<div class="modal-overlay" *ngIf="showPrelevementModal" (click)="closePrelevementModal()">
+  <div class="modal-container" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h3>Prélever la bobine</h3>
+      <button class="btn-close" (click)="closePrelevementModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label for="bobineId">ID de la bobine:</label>
+        <input type="number" id="bobineId" [(ngModel)]="prelevementForm.bobineId" class="form-control" readonly>
+        <small class="form-text">ID de la bobine à prélever pour la demande #{{ selectedDemandeForPrelevement?.id }}</small>
+      </div>
+      <div class="form-group">
+        <label>Emplacement actuel:</label>
+        <div class="emplacement-info">
+          <div class="emplacement-details">
+            <div class="emplacement-id">
+              <strong>ID:</strong> {{ prelevementEmplacementId || 'Non trouvé' }}
+            </div>
+            <div class="emplacement-coords">
+              <strong>Coordonnées:</strong> {{ prelevementEmplacementCoordonnees || 'Non trouvé' }}
+            </div>
+          </div>
+          <div class="emplacement-message">
+            <i class="fas fa-info-circle"></i>
+            <span>Cet emplacement sera automatiquement libéré lors du prélèvement</span>
+          </div>
+        </div>
+        <small class="form-text">La bobine sera retirée de son emplacement actuel</small>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" (click)="closePrelevementModal()">Annuler</button>
+      <button class="btn btn-primary" (click)="confirmerPrelevement()" [disabled]="isProcessing">
+        {{ isProcessing ? 'Traitement...' : 'Confirmer le prélèvement' }}
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal d'exécution des demandes de retour -->
+<div class="modal-overlay" *ngIf="showExecuteRetourModal" (click)="closeExecuteRetourModal()">
+  <div class="modal-container modal-large" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h5 class="modal-title">
+        <i class="fas fa-play-circle"></i>
+        Exécuter la demande de retour
+      </h5>
+      <button type="button" class="btn-close" (click)="closeExecuteRetourModal()">&times;</button>
+    </div>
+    
+    <div class="modal-body">
+      <div class="demande-info">
+        <p><strong>Demande #{{ selectedRetourToExecute?.id }}</strong></p>
+        <p>ID Bobine: {{ selectedRetourToExecute?.bobineId }}</p>
+        <p>ID Demande: {{ selectedRetourToExecute?.demandeId }}</p>
+        <p>Machine: {{ getRetourMachineFromDemande(selectedRetourToExecute) }}</p>
+      </div>
+      
+      <div class="zone-selector">
+        <label for="zoneRetourSelect">Sélectionner une zone de retour:</label>
+        <select id="zoneRetourSelect" [(ngModel)]="selectedZoneRetour" (change)="onZoneRetourChange()">
+          <option *ngFor="let zone of zones" [value]="zone.codeZone || zone.id">
+            {{ zone.nom || zone.codeZone || zone.id }}
+          </option>
+        </select>
+      </div>
+      
+      <div class="stock-grid-container" *ngIf="!loadingRetourGrid && grilleRetour.length > 0">
+        <div class="grid-info">
+          <span>Zone: {{ selectedZoneRetour }} | {{ grilleRetour.length }}×{{ grilleRetour[0]?.length || 0 }}</span>
+        </div>
+        
+        <div class="grid-scroll">
+          <table class="stock-grid-table">
+            <thead>
+              <tr>
+                <th></th>
+                <th *ngFor="let colNum of getColonnesRetourAffichees()" class="col-header">
+                  {{ colNum }}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let rangeeNum of getRangeesRetourAffichees()">
+                <th class="row-header">{{ rangeeNum }}</th>
+                <td *ngFor="let colNum of getColonnesRetourAffichees()" 
+                    class="grid-cell"
+                    [ngClass]="getCouleurCelluleRetour(grilleRetour[rangeeNum - 1][colNum - 1])"
+                    [class.cell-non-cliquable]="!isCellRetourClickable(grilleRetour[rangeeNum - 1][colNum - 1])"
+                    (click)="onEmplacementRetourClick(grilleRetour[rangeeNum - 1][colNum - 1])">
+                  <div class="cell-content">
+                    <div class="cell-coords">
+                      {{ grilleRetour[rangeeNum - 1][colNum - 1]?.coordonneeEmplacement }}
+                    </div>
+                    <div class="cell-bobine" *ngIf="grilleRetour[rangeeNum - 1][colNum - 1] && grilleRetour[rangeeNum - 1][colNum - 1].bobineId">
+                      {{ getBobineReference(grilleRetour[rangeeNum - 1][colNum - 1]) }}
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      
+      <div *ngIf="loadingRetourGrid" class="loading-message">
+        <i class="fas fa-spinner fa-spin"></i>
+        <p>Chargement de la grille de stockage...</p>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button type="button" class="btn btn-secondary" (click)="closeExecuteRetourModal()">
+        Annuler
+      </button>
+      <button type="button" class="btn btn-primary" (click)="executeRetour()" 
+              [disabled]="isProcessing || !executeRetourForm.emplacementRetourId">
+        <i class="fas fa-play" *ngIf="!isProcessing"></i>
+        <i class="fas fa-spinner fa-spin" *ngIf="isProcessing"></i>
+        {{ isProcessing ? 'Exécution...' : 'Exécuter' }}
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de confirmation d'exécution de retour -->
+<div class="modal-overlay" *ngIf="showConfirmExecuteRetourModal" (click)="closeConfirmExecuteRetourModal()">
+  <div class="modal-container" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h3>Confirmer l'exécution du retour</h3>
+      <button class="modal-close" (click)="closeConfirmExecuteRetourModal()">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    
+    <div class="modal-body">
+      <div class="confirmation-details">
+        <h4>Détails de l'exécution:</h4>
+        <ul>
+          <li><strong>ID Bobine:</strong> {{ selectedRetourToExecute?.bobineId }}</li>
+          <li><strong>Demande retour:</strong> #{{ selectedRetourToExecute?.id }}</li>
+          <li><strong>Emplacement de retour:</strong> {{ selectedEmplacementRetour?.coordonneeEmplacement }}</li>
+          <li><strong>Zone:</strong> {{ selectedZoneRetour }}</li>
+        </ul>
+      </div>
+      
+      <div class="alert alert-info">
+        <i class="fas fa-info-circle"></i>
+        <p>La bobine sera placée à l'emplacement sélectionné et la demande de retour sera marquée comme terminée.</p>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-secondary" (click)="closeConfirmExecuteRetourModal()">Annuler</button>
+      <button class="btn btn-primary" (click)="confirmerExecuteRetour()" [disabled]="isProcessing">
+        <i class="fas fa-spinner fa-spin" *ngIf="isProcessing"></i>
+        {{ isProcessing ? 'Exécution...' : 'Confirmer l\'exécution' }}
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de détails de demande de retour -->
+<div class="modal-overlay" *ngIf="showRetourDetailsModal" (click)="closeRetourDetailsModal()">
+  <div class="modal-container modal-md" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h3>
+        <i class="fas fa-info-circle"></i>
+        Détails de la demande de retour #{{ selectedRetourDetails?.id }}
+      </h3>
+      <button class="modal-close" (click)="closeRetourDetailsModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="details-container" *ngIf="selectedRetourDetails">
+        <div class="detail-section">
+          <h4>Informations générales</h4>
+          <div class="detail-grid">
+            <div class="detail-item">
+              <label>ID Bobine:</label>
+              <span>{{ selectedRetourDetails.bobineId || 'Non spécifié' }}</span>
+            </div>
+            <div class="detail-item">
+              <label>ID Demande:</label>
+              <span>{{ selectedRetourDetails.demandeId || 'Non spécifié' }}</span>
+            </div>
+            <div class="detail-item">
+              <label>Statut:</label>
+              <span class="status-badge" [class]="getRetourStatutClass(selectedRetourDetails.statut)">
+                {{ getRetourStatutLabel(selectedRetourDetails.statut) }}
+              </span>
+            </div>
+            <div class="detail-item">
+              <label>Date création:</label>
+              <span>{{ selectedRetourDetails.dateCreation | date:'dd/MM/yyyy HH:mm' }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="detail-section">
+          <h4>Assignation</h4>
+          <div class="detail-grid">
+            <div class="detail-item">
+              <label>Machine:</label>
+              <span>{{ getRetourMachineFromDemande(selectedRetourDetails) }}</span>
+            </div>
+            <div class="detail-item">
+              <label>Assigné à:</label>
+              <span>{{ alimentateurNom || 'Moi' }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="detail-section" *ngIf="selectedRetourDetails.dateExecution">
+          <h4>Exécution</h4>
+          <div class="detail-grid">
+            <div class="detail-item">
+              <label>Date exécution:</label>
+              <span>{{ selectedRetourDetails.dateExecution | date:'dd/MM/yyyy HH:mm' }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="detail-section" *ngIf="selectedRetourDetails.dateTerminaison">
+          <h4>Terminaison</h4>
+          <div class="detail-grid">
+            <div class="detail-item">
+              <label>Date terminaison:</label>
+              <span>{{ selectedRetourDetails.dateTerminaison | date:'dd/MM/yyyy HH:mm' }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" (click)="closeRetourDetailsModal()">
+        Fermer
+      </button>
+    </div>
+  </div>
+</div>

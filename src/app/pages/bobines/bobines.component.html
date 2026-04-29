@@ -1,0 +1,236 @@
+<div class="page-container">
+  <div class="page-header">
+    <h1>Gestion des Bobines</h1>
+    <p class="page-description">Administration des bobines et gestion des stocks</p>
+  </div>
+  
+  <!-- Messages de succès/erreur -->
+  <div class="alert alert-success" *ngIf="successMessage">
+    {{ successMessage }}
+  </div>
+  
+  <div class="alert alert-error" *ngIf="errorMessage">
+    {{ errorMessage }}
+  </div>
+  
+  <div class="page-content">
+    <div class="content-card">
+      <div class="card-header">
+        <h2>Liste des Bobines</h2>
+        <div class="card-actions">
+          <button class="btn btn-primary" (click)="openCreateModal()">
+            <span>+</span> Ajouter une bobine
+          </button>
+        </div>
+      </div>
+      
+      <!-- Filtres de recherche -->
+      <div class="filters-section">
+        <div class="filters-header">
+          <h3>Filtres</h3>
+          <div class="filter-actions">
+            <button class="btn btn-sm btn-primary" (click)="loadBobinesDisponibles()">
+              Disponibles uniquement
+            </button>
+            <button class="btn btn-sm btn-secondary" (click)="statutFilter=''; referenceFilter=''; applyFilters()">
+              Réinitialiser
+            </button>
+          </div>
+        </div>
+        
+        <div class="filters-grid">
+          <!-- Recherche par référence -->
+          <div class="filter-group">
+            <label for="referenceFilter">Référence</label>
+            <input type="text" 
+                   id="referenceFilter" 
+                   class="form-control" 
+                   placeholder="Rechercher une référence..."
+                   [(ngModel)]="referenceFilter"
+                   (input)="applyFilters()">
+          </div>
+          
+          <!-- Filtre par statut -->
+          <div class="filter-group">
+            <label for="statutFilter">Statut</label>
+            <select id="statutFilter" 
+                    class="form-control" 
+                    [(ngModel)]="statutFilter"
+                    (change)="applyFilters()">
+              <option value="">Tous les statuts</option>
+              <option *ngFor="let statut of statutsPossibles" [value]="statut">
+                {{ getStatutLabel(statut) }}
+              </option>
+            </select>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Tableau des bobines -->
+      <div class="table-section">
+        <!-- Loading -->
+        <div class="loading-container" *ngIf="isLoading">
+          <div class="loading-spinner"></div>
+          <p>Chargement des bobines...</p>
+        </div>
+        
+        <!-- Tableau -->
+        <div class="table-container" *ngIf="!isLoading">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Référence</th>
+                <th>Statut</th>
+                <th>Emplacement</th>
+                <th>Utilisateur réservé</th>
+                <th>Date de création</th>
+                <th>Date de mise à jour</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngIf="filteredBobines.length === 0">
+                <td colspan="8" class="text-center">
+                  {{ bobines.length === 0 ? 'Aucune bobine trouvée' : 'Aucun résultat pour les filtres appliqués' }}
+                </td>
+              </tr>
+              <tr *ngFor="let bobine of filteredBobines">
+                <td>{{ bobine.id }}</td>
+                <td>
+                  <strong>{{ bobine.referenceBobine }}</strong>
+                </td>
+                <td>
+                  <span class="status-badge" 
+                        [class]="getStatutClass(bobine.statut)">
+                    {{ getStatutLabel(bobine.statut) }}
+                  </span>
+                </td>
+                <td>
+                  <span *ngIf="bobine.coordonneeEmplacement" class="text-success">
+                    {{ bobine.coordonneeEmplacement }}
+                  </span>
+                  <span *ngIf="!bobine.coordonneeEmplacement" class="text-muted">
+                    Non assignée
+                  </span>
+                </td>
+                <td>
+                  <span *ngIf="bobine.utilisateurReserveurId" class="text-warning">
+                    ID: {{ bobine.utilisateurReserveurId }}
+                  </span>
+                  <span *ngIf="!bobine.utilisateurReserveurId" class="text-muted">
+                    -
+                  </span>
+                </td>
+                <td>{{ formatDate(bobine.dateCreation) }}</td>
+                <td>{{ formatDate(bobine.dateMiseAJour) }}</td>
+                <td class="actions">
+                  <button class="btn btn-sm btn-secondary" 
+                          (click)="openEditModal(bobine)"
+                          title="Modifier">
+                    <span>Modifier</span>
+                  </button>
+                  <button class="btn btn-sm btn-danger" 
+                          (click)="deleteBobine(bobine)"
+                          title="Supprimer">
+                    <span>Supprimer</span>
+                  </button>
+                  <button class="btn btn-sm btn-warning" 
+                          *ngIf="bobine.statut === 'DISPONIBLE'"
+                          (click)="logReserverClick(bobine); reserverBobine(bobine)"
+                          title="Réserver">
+                    <span>Réserver</span>
+                  </button>
+                  <button class="btn btn-sm btn-success" 
+                          *ngIf="bobine.statut === 'RESERVEE'"
+                          (click)="logLibererClick(bobine); libererBobine(bobine)"
+                          title="Libérer">
+                    <span>Libérer</span>
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Création/Modification -->
+  <div class="modal-overlay" *ngIf="showModal" (click)="closeModal()">
+    <div class="modal-container" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          {{ isEditMode ? 'Modifier la bobine' : 'Ajouter une bobine' }}
+        </h5>
+        <button type="button" class="btn-close" (click)="closeModal()">&times;</button>
+      </div>
+      
+      <div class="modal-body">
+        <form id="bobineForm" (ngSubmit)="save()">
+          <div class="mb-3">
+            <label for="reference" class="form-label">Référence de la bobine *</label>
+            <input type="text" id="reference" class="form-control" 
+                   [(ngModel)]="formReference" name="reference"
+                   placeholder="REF-1002" required>
+            <div class="form-text">
+              Format: REF-**** (ex: REF-1002, REF-0156)
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label for="emplacement" class="form-label">Emplacement</label>
+            <select id="emplacement" class="form-select" 
+                    [(ngModel)]="formEmplacementId" name="emplacement">
+              <option value="">Aucun emplacement</option>
+              <option *ngIf="isEditMode && selectedBobine?.emplacementActuelId" 
+                      [value]="selectedBobine?.emplacementActuelId">
+                {{ selectedBobine?.coordonneeEmplacement }} (Actuel - ID: {{ selectedBobine?.emplacementActuelId }})
+              </option>
+              <option *ngFor="let emp of emplacementsVides" [value]="emp.id">
+                {{ emp.coordonneeEmplacement }} (Zone: {{ emp.codeZone }} - ID: {{ emp.id }})
+              </option>
+            </select>
+            <div class="form-text">
+              <strong>Conservez l'emplacement actuel</strong> ou sélectionnez un emplacement vide<br>
+              <small>ID sélectionné: {{ formEmplacementId || 'Aucun' }}</small>
+            </div>
+          </div>
+        </form>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" (click)="closeModal()">
+          Annuler
+        </button>
+        <button type="submit" class="btn btn-primary" form="bobineForm">
+          <i class="fas fa-save"></i>
+          {{ isEditMode ? 'Modifier' : 'Créer' }}
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de confirmation -->
+<div class="modal-overlay" *ngIf="showConfirmModal" (click)="closeConfirmModal()">
+  <div class="modal-container" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h5 class="modal-title">Confirmation</h5>
+      <button type="button" class="btn-close" (click)="closeConfirmModal()">&times;</button>
+    </div>
+    
+    <div class="modal-body">
+      <p class="mb-0">{{ confirmMessage }}</p>
+    </div>
+
+    <div class="modal-footer">
+      <button type="button" class="btn btn-secondary" (click)="closeConfirmModal()">
+        Annuler
+      </button>
+      <button type="button" class="btn btn-primary" (click)="confirmActionExecute()">
+        <i class="fas fa-check"></i> Confirmer
+      </button>
+    </div>
+  </div>
+</div>

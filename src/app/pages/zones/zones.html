@@ -1,0 +1,266 @@
+<div class="page-container">
+  <div class="page-header">
+    <h1>Gestion des Zones</h1>
+    <p class="page-description">Administration des zones de stockage et de travail</p>
+  </div>
+  
+  <!-- Messages -->
+  <div class="alert alert-success" *ngIf="successMessage">
+    {{ successMessage }}
+  </div>
+  
+  <div class="alert alert-danger" *ngIf="errorMessage">
+    {{ errorMessage }}
+  </div>
+  
+  <div class="page-content">
+    <div class="content-card">
+      <div class="card-header">
+        <h2>Liste des Zones</h2>
+        <div class="card-actions">
+          <button class="btn btn-primary" (click)="openAddModal()">
+            <span class="btn-icon">+</span>
+            Ajouter une zone
+          </button>
+        </div>
+      </div>
+      
+      <!-- Filtres de recherche -->
+      <div class="filters-section">
+        <div class="filters-header">
+          <h3>Filtres</h3>
+          <button class="btn btn-sm btn-secondary" (click)="resetFilters()">Réinitialiser</button>
+        </div>
+        
+        <div class="filters-grid">
+          <!-- Recherche textuelle -->
+          <div class="filter-group">
+            <label for="searchQuery">Recherche</label>
+            <input type="text" 
+                   id="searchQuery" 
+                   class="form-control" 
+                   placeholder="Code, nom, description..."
+                   [(ngModel)]="searchQuery"
+                   (input)="onSearchChange()">
+          </div>
+          
+          <!-- Filtre par capacité -->
+          <div class="filter-group">
+            <label for="capaciteFilter">Capacité</label>
+            <select id="capaciteFilter" 
+                    class="form-control" 
+                    [(ngModel)]="capaciteFilter"
+                    (change)="onCapaciteFilterChange()">
+              <option value="">Toutes</option>
+              <option value="petite">Petite (≤50)</option>
+              <option value="moyenne">Moyenne (51-200)</option>
+              <option value="grande">Grande (>200)</option>
+            </select>
+          </div>
+          
+          <!-- Filtre par nombre de rangées -->
+          <div class="filter-group">
+            <label for="rangeesFilter">Nombre de rangées</label>
+            <select id="rangeesFilter" 
+                    class="form-control" 
+                    [(ngModel)]="rangeesFilter"
+                    (change)="onRangeesFilterChange()">
+              <option value="">Toutes</option>
+              <option value="petit">Petit (≤5)</option>
+              <option value="moyen">Moyen (6-15)</option>
+              <option value="grand">Grand (>15)</option>
+            </select>
+          </div>
+          
+          <!-- Filtre par nombre de colonnes -->
+          <div class="filter-group">
+            <label for="colonnesFilter">Nombre de colonnes</label>
+            <select id="colonnesFilter" 
+                    class="form-control" 
+                    [(ngModel)]="colonnesFilter"
+                    (change)="onColonnesFilterChange()">
+              <option value="">Toutes</option>
+              <option value="petit">Petit (≤5)</option>
+              <option value="moyen">Moyen (6-15)</option>
+              <option value="grand">Grand (>15)</option>
+            </select>
+          </div>
+        </div>
+        
+        <!-- Résultats -->
+        <div class="filters-results" *ngIf="zonesFiltrees.length !== zones.length">
+          <p>{{ zonesFiltrees.length }} zone(s) trouvée(s) sur {{ zones.length }}</p>
+        </div>
+      </div>
+      
+      <!-- Loading -->
+      <div class="loading-container" *ngIf="loading">
+        <div class="spinner"></div>
+        <p>Chargement des zones...</p>
+      </div>
+      
+      <!-- Tableau -->
+      <div class="table-container" *ngIf="!loading">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Code</th>
+              <th>Nom de la zone</th>
+              <th>Description</th>
+              <th>Capacité</th>
+              <th>Nombre de rangées</th>
+              <th>Nombre de colonnes</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngIf="zonesFiltrees.length === 0">
+              <td colspan="7" class="text-center">Aucune zone trouvée</td>
+            </tr>
+            <tr *ngFor="let zone of zonesFiltrees">
+              <td>{{ zone.codeZone || zone.id }}</td>
+              <td>{{ zone.nom }}</td>
+              <td>{{ zone.description || '-' }}</td>
+              <td>{{ zone.capaciteMax || (zone.nombreRangees * zone.nombreColonnes) }}</td>
+              <td>{{ zone.nombreRangees }}</td>
+              <td>{{ zone.nombreColonnes }}</td>
+              <td class="text-center">
+                <div class="actions">
+                  <button class="btn btn-sm btn-secondary" (click)="openEditModal(zone)">
+                    Modifier
+                  </button>
+                  <button class="btn btn-sm btn-danger" (click)="confirmDelete(zone)">
+                    Supprimer
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal d'ajout/modification -->
+<div class="modal-overlay" *ngIf="showModal" (click)="closeModal()">
+  <div class="modal-container" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h3>{{ isEditMode ? 'Modifier la zone' : 'Ajouter une zone' }}</h3>
+      <button class="modal-close" (click)="closeModal()">&times;</button>
+    </div>
+    
+    <div class="modal-body">
+      <form [formGroup]="form" (ngSubmit)="save()">
+        <div class="form-group">
+          <label for="codeZone">Code de la zone *</label>
+          <input type="text" 
+                 id="codeZone" 
+                 formControlName="codeZone" 
+                 class="form-control"
+                 maxlength="1"
+                 autofocus
+                 (input)="clearMessages()">
+          <div class="error-message" 
+               *ngIf="form.get('codeZone')?.invalid && form.get('codeZone')?.touched">
+            Ce champ est requis (1 caractère max)
+          </div>
+        </div>
+        
+        <div class="form-group">
+          <label for="nom">Nom de la zone *</label>
+          <input type="text" 
+                 id="nom" 
+                 formControlName="nom" 
+                 class="form-control"
+                 (input)="clearMessages()">
+          <div class="error-message" 
+               *ngIf="form.get('nom')?.invalid && form.get('nom')?.touched">
+            Ce champ est requis
+          </div>
+        </div>
+        
+        <div class="form-group">
+          <label for="description">Description</label>
+          <textarea id="description" 
+                    formControlName="description" 
+                    class="form-control"
+                    rows="3"
+                    (input)="clearMessages()"></textarea>
+        </div>
+        
+        <div class="form-group">
+          <label for="nombreRangees">Nombre de rangées (1-99)</label>
+          <input type="number" 
+                 id="nombreRangees" 
+                 formControlName="nombreRangees" 
+                 class="form-control"
+                 min="1"
+                 max="99"
+                 (input)="clearMessages()">
+          <div class="error-message" 
+               *ngIf="form.get('nombreRangees')?.invalid && form.get('nombreRangees')?.touched">
+            {{ getRangeesError() }}
+          </div>
+        </div>
+        
+        <div class="form-group">
+          <label for="nombreColonnes">Nombre de colonnes (1-99)</label>
+          <input type="number" 
+                 id="nombreColonnes" 
+                 formControlName="nombreColonnes" 
+                 class="form-control"
+                 min="1"
+                 max="99"
+                 (input)="clearMessages()">
+          <div class="error-message" 
+               *ngIf="form.get('nombreColonnes')?.invalid && form.get('nombreColonnes')?.touched">
+            {{ getColonnesError() }}
+          </div>
+        </div>
+        
+                
+        <!-- Messages d'erreur -->
+        <div class="alert alert-danger" *ngIf="errorMessage">
+          {{ errorMessage }}
+        </div>
+        
+        <div class="alert alert-success" *ngIf="successMessage">
+          {{ successMessage }}
+        </div>
+      </form>
+    </div>
+    
+    <div class="modal-footer">
+      <button type="button" class="btn btn-secondary" (click)="closeModal()">
+        Annuler
+      </button>
+      <button type="button" class="btn btn-primary" (click)="save()" [disabled]="form.invalid">
+        {{ isEditMode ? 'Modifier' : 'Créer' }}
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de suppression -->
+<div class="modal-overlay" *ngIf="showDeleteModal" (click)="cancelDelete()">
+  <div class="modal-container modal-sm" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h3>Confirmer la suppression</h3>
+      <button class="modal-close" (click)="cancelDelete()">&times;</button>
+    </div>
+    
+    <div class="modal-body">
+      <p>Êtes-vous sûr de vouloir supprimer la zone <strong>{{ zoneToDelete?.nom }}</strong> ?</p>
+      <p class="warning" *ngIf="zoneToDelete?.nombreEmplacements !== undefined">
+        <strong>Attention :</strong> Cette action supprimera également <strong>{{ zoneToDelete!.nombreEmplacements }}</strong> emplacement(s) associé(s) à cette zone.
+      </p>
+      <p class="warning">Cette action est irréversible.</p>
+    </div>
+    
+    <div class="modal-footer">
+      <button class="btn btn-secondary" (click)="cancelDelete()">Annuler</button>
+      <button class="btn btn-danger" (click)="deleteZone()">Supprimer</button>
+    </div>
+  </div>
+</div>

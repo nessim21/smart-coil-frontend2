@@ -1,0 +1,258 @@
+<div class="page-container">
+  <div class="page-header">
+    <h1>Grille de Stockage</h1>
+    <p class="page-description">Visualisation des emplacements de stockage par zone</p>
+  </div>
+
+  <!-- Messages d'erreur -->
+  <div class="alert alert-error" *ngIf="errorMessage">
+    {{ errorMessage }}
+  </div>
+
+  <!-- Légende des couleurs -->
+  <div class="legend-section">
+    <h3>Légende des couleurs</h3>
+    <div class="legend-grid">
+      <div class="legend-item">
+        <div class="legend-color rouge"></div>
+        <span>VIDE - Emplacement libre</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-color vert"></div>
+        <span>DISPONIBLE - Bobine disponible</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-color jaune"></div>
+        <span>RESERVEE - Bobine réservée</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Contrôles -->
+  <div class="controls-section">
+    <div class="control-group">
+      <label for="zoneSelect">Zone</label>
+      <select id="zoneSelect" 
+              class="form-control" 
+              [(ngModel)]="selectedZone"
+              (change)="onZoneChange()">
+        <option *ngFor="let zone of zones" [value]="zone.codeZone || zone.id">
+          {{ zone.codeZone || zone.id }} - {{ zone.nom }}
+        </option>
+      </select>
+    </div>
+    
+    <button class="btn btn-secondary" (click)="refresh()">
+      <span>Refresh</span> Rafraîchir
+    </button>
+  </div>
+
+  <!-- Filtres de recherche -->
+  <div class="filters-section">
+    <div class="filters-header">
+      <h3>Filtres</h3>
+      <button class="btn btn-sm btn-secondary" (click)="resetFilters()">Réinitialiser</button>
+    </div>
+    
+    <div class="filters-grid">
+      <!-- Filtre par rangée -->
+      <div class="filter-group">
+        <label for="searchRangee">Rangée</label>
+        <input type="text" 
+               id="searchRangee" 
+               class="form-control" 
+               placeholder="Ex: 1, 5, 10..."
+               [(ngModel)]="searchRangee"
+               (input)="onSearchChange()">
+      </div>
+      
+      <!-- Filtre par colonne -->
+      <div class="filter-group">
+        <label for="searchColonne">Colonne</label>
+        <input type="text" 
+               id="searchColonne" 
+               class="form-control" 
+               placeholder="Ex: 1, 3, 15..."
+               [(ngModel)]="searchColonne"
+               (input)="onSearchChange()">
+      </div>
+      
+      <!-- Filtre par coordonnée d'emplacement -->
+      <div class="filter-group">
+        <label for="searchCoordonnee">Coordonnée emplacement</label>
+        <input type="text" 
+               id="searchCoordonnee" 
+               class="form-control" 
+               placeholder="Ex: Y-01-05, A-10-15..."
+               [(ngModel)]="searchCoordonnee"
+               (input)="onSearchChange()">
+      </div>
+    </div>
+  </div>
+
+  <!-- Grille de stockage -->
+  <div class="grid-section">
+    <div class="grid-container" *ngIf="!loading && grille.length > 0">
+      <div class="grid-info">
+        <span>{{ getInfosGrille() }}</span>
+        <span class="scroll-info" *ngIf="aScrollHorizontal() || aScrollVertical()">
+          <span *ngIf="aScrollHorizontal()">Scroll horizontal pour voir {{ nombreColonnes - MAX_COLONNES_AFFICHES }} colonnes supplémentaires</span>
+          <span *ngIf="aScrollHorizontal() && aScrollVertical()"> | </span>
+          <span *ngIf="aScrollVertical()">Scroll vertical pour voir {{ nombreRangees - MAX_RANGEES_AFFICHES }} rangées supplémentaires</span>
+        </span>
+      </div>
+      
+      <div class="grid-wrapper" 
+           [class.scroll-horizontal]="aScrollHorizontal()" 
+           [class.scroll-vertical]="aScrollVertical()">
+        <table class="stock-grid">
+          <thead>
+            <tr>
+              <th class="corner-cell"></th>
+              <th *ngFor="let colNum of getColonnesAffichees()" class="col-header">
+                {{ colNum }}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let rangeeNum of getRangeesAffichees()">
+              <th class="row-header">{{ rangeeNum }}</th>
+              <td *ngFor="let colNum of getColonnesAffichees()" 
+                  class="grid-cell"
+                  [class.clickable]="isAlimentateur && grille[rangeeNum - 1][colNum - 1] && !grille[rangeeNum - 1][colNum - 1].bobineId && grille[rangeeNum - 1][colNum - 1].statut !== 'RESERVE'"
+                  [ngClass]="getCouleurCellule(grille[rangeeNum - 1][colNum - 1])"
+                  [hidden]="!shouldShowCell(rangeeNum, colNum, grille[rangeeNum - 1][colNum - 1])"
+                  (click)="onCellClick(grille[rangeeNum - 1][colNum - 1])">
+                <div class="cell-content">
+                  <div class="cell-coords">
+                    {{ grille[rangeeNum - 1][colNum - 1]?.coordonneeEmplacement }}
+                  </div>
+                  <div class="cell-bobine" *ngIf="grille[rangeeNum - 1][colNum - 1] && grille[rangeeNum - 1][colNum - 1].bobineId">
+                    {{ getBobineReference(grille[rangeeNum - 1][colNum - 1]) }}
+                  </div>
+                  <!-- Bouton d'ajout pour les emplacements vides uniquement (uniquement pour l'admin) -->
+                  <button class="add-bobine-btn" 
+                          *ngIf="!isAlimentateur && grille[rangeeNum - 1][colNum - 1] && !grille[rangeeNum - 1][colNum - 1].bobineId"
+                          (click)="openAddBobineModal(grille[rangeeNum - 1][colNum - 1]); $event.stopPropagation()"
+                          title="Ajouter une bobine à cet emplacement">
+                    +
+                  </button>
+                  <!-- Bouton de suppression pour les emplacements occupés (uniquement pour l'admin) -->
+                  <button class="remove-bobine-btn" 
+                          *ngIf="!isAlimentateur && grille[rangeeNum - 1][colNum - 1] && grille[rangeeNum - 1][colNum - 1].bobineId"
+                          (click)="removeBobineFromEmplacement(grille[rangeeNum - 1][colNum - 1]); $event.stopPropagation()"
+                          title="Retirer la bobine de cet emplacement">
+                    -
+                  </button>
+                  <!-- PAS DE BOUTON pour l'alimentateur - il clique directement sur la cellule -->
+                </div>
+              </td>
+              <td *ngFor="let colNum of getColonnesAffichees()" 
+                  class="grid-cell filtered-out"
+                  [hidden]="shouldShowCell(rangeeNum, colNum, grille[rangeeNum - 1][colNum - 1])">
+                <div class="cell-content">
+                  <div class="cell-coords">
+                    {{ grille[rangeeNum - 1][colNum - 1]?.coordonneeEmplacement }}
+                  </div>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Loading -->
+    <div class="loading-container" *ngIf="loading">
+      <div class="spinner"></div>
+      <p>Chargement de la grille...</p>
+    </div>
+
+    <!-- Empty state -->
+    <div class="empty-state" *ngIf="!loading && grille.length === 0">
+      <p>Aucun emplacement trouvé pour cette zone</p>
+    </div>
+  </div>
+</div>
+
+
+<!-- Modal d'ajout de bobine -->
+<div class="modal-overlay" *ngIf="showAddBobineModal" (click)="closeAddBobineModal()">
+  <div class="modal-container" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h3>Ajouter une bobine à l'emplacement</h3>
+      <button class="modal-close" (click)="closeAddBobineModal()">&times;</button>
+    </div>
+    
+    <div class="modal-body">
+      <div class="form-group">
+        <label><strong>Emplacement sélectionné :</strong></label>
+        <p class="emplacement-info">{{ selectedEmplacement?.coordonneeEmplacement }}</p>
+      </div>
+      
+      <div class="form-group">
+        <label for="bobineReference">Référence de la bobine *</label>
+        <input type="text" 
+               id="bobineReference" 
+               class="form-control" 
+               placeholder="REF-1002"
+               [(ngModel)]="bobineReference"
+               (input)="clearBobineMessages()">
+        <div class="help-text">
+          Format requis : REF-**** (ex: REF-1002, REF-0156). La bobine sera créée automatiquement avec le statut "DISPONIBLE".
+        </div>
+      </div>
+    </div>
+    
+    <!-- Messages -->
+    <div class="alert alert-danger" *ngIf="bobineErrorMessage">
+      {{ bobineErrorMessage }}
+    </div>
+    
+    <div class="alert alert-success" *ngIf="bobineSuccessMessage">
+      {{ bobineSuccessMessage }}
+    </div>
+    
+    <div class="modal-footer">
+      <button type="button" class="btn btn-secondary" (click)="closeAddBobineModal()">
+        Annuler
+      </button>
+      <button type="button" class="btn btn-primary" (click)="addBobineToEmplacement()" [disabled]="!bobineReference || bobineReference.trim() === '' || isCreatingBobine">
+        <span *ngIf="!isCreatingBobine">Ajouter la bobine</span>
+        <span *ngIf="isCreatingBobine">Création en cours...</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de confirmation de suppression de bobine -->
+<div class="modal-overlay" *ngIf="showRemoveBobineModal" (click)="closeRemoveBobineModal()">
+  <div class="modal-container" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h3>Confirmation de retrait</h3>
+      <button class="modal-close" (click)="closeRemoveBobineModal()">&times;</button>
+    </div>
+    
+    <div class="modal-body">
+      <div class="form-group">
+        <label><strong>Êtes-vous sûr de vouloir retirer la bobine ?</strong></label>
+        <div class="bobine-info">
+          <p><strong>Référence :</strong> {{ bobineToRemoveReference }}</p>
+          <p><strong>Emplacement :</strong> {{ bobineToRemoveEmplacement }}</p>
+        </div>
+        <div class="warning-text">
+          Cette action supprimera définitivement la bobine de l'emplacement et de la liste des bobines.
+        </div>
+      </div>
+    </div>
+    
+    <div class="modal-footer">
+      <button type="button" class="btn btn-secondary" (click)="closeRemoveBobineModal()">
+        Annuler
+      </button>
+      <button type="button" class="btn btn-danger" (click)="confirmRemoveBobine()">
+        Retirer la bobine
+      </button>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,289 @@
+<div class="page-container">
+  <div class="page-header">
+    <h1>Gestion des Utilisateurs</h1>
+    <p class="page-description">Administration des comptes utilisateurs et permissions</p>
+  </div>
+  
+  <!-- Messages de succès/erreur -->
+  <div class="alert alert-success" *ngIf="successMessage">
+    {{ successMessage }}
+  </div>
+  
+  <div class="alert alert-error" *ngIf="errorMessage">
+    {{ errorMessage }}
+  </div>
+  
+  <div class="page-content">
+    <div class="content-card">
+      <div class="card-header">
+        <h2>Liste des Utilisateurs</h2>
+        <div class="card-actions">
+          <button class="btn btn-primary" (click)="openAddModal()">
+            <span>+</span> Ajouter un utilisateur
+          </button>
+        </div>
+      </div>
+      
+      <!-- Filtres de recherche -->
+      <div class="filters-section">
+        <div class="filters-header">
+          <h3>Filtres</h3>
+          <button class="btn btn-sm btn-secondary" (click)="resetFilters()">Réinitialiser</button>
+        </div>
+        
+        <div class="filters-grid">
+          <!-- Recherche textuelle -->
+          <div class="filter-group">
+            <label for="searchQuery">Recherche</label>
+            <input type="text" 
+                   id="searchQuery" 
+                   class="form-control" 
+                   placeholder="Nom, code badge, téléphone, bureau..."
+                   [(ngModel)]="searchQuery"
+                   (input)="onSearchChange()">
+          </div>
+          
+          <!-- Filtre par statut -->
+          <div class="filter-group">
+            <label for="statutFilter">Statut</label>
+            <select id="statutFilter" 
+                    class="form-control" 
+                    [(ngModel)]="statutFilter"
+                    (change)="onStatutFilterChange()">
+              <option value="">Tous</option>
+              <option value="actif">Actif</option>
+              <option value="inactif">Inactif</option>
+            </select>
+          </div>
+          
+          <!-- Filtre par rôle -->
+          <div class="filter-group">
+            <label for="roleFilter">Rôle</label>
+            <select id="roleFilter" 
+                    class="form-control" 
+                    [(ngModel)]="roleFilter"
+                    (change)="onRoleFilterChange()">
+              <option value="">Tous</option>
+              <option *ngFor="let role of availableRoles" [value]="role.nomRole">
+                {{ role.nomRole }}
+              </option>
+            </select>
+          </div>
+        </div>
+        
+        <!-- Résultats -->
+        <div class="filter-results">
+          <span class="result-count">
+            {{ utilisateursFiltres.length }} utilisateur(s) trouvé(s)
+          </span>
+        </div>
+      </div>
+      
+      <!-- Loading -->
+      <div class="loading-container" *ngIf="loading">
+        <div class="spinner"></div>
+        <p>Chargement des utilisateurs...</p>
+      </div>
+      
+      <!-- Tableau -->
+      <div class="table-container" *ngIf="!loading">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Nom d'utilisateur</th>
+              <th>Code badge</th>
+              <th>Téléphone</th>
+              <th>Bureau</th>
+              <th>Est actif</th>
+              <th>Rôles</th>
+              <th>Date création</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngIf="utilisateursFiltres.length === 0">
+              <td colspan="9" class="text-center">
+                {{ utilisateurs.length === 0 ? 'Aucun utilisateur trouvé' : 'Aucun résultat pour les filtres appliqués' }}
+              </td>
+            </tr>
+            <tr *ngFor="let utilisateur of utilisateursFiltres">
+              <td>{{ utilisateur.id }}</td>
+              <td>{{ utilisateur.nomUtilisateur }}</td>
+              <td>{{ utilisateur.codeBadge || '-' }}</td>
+              <td>{{ utilisateur.telephone || '-' }}</td>
+              <td>{{ utilisateur.bureau || '-' }}</td>
+              <td>
+                <span class="status-badge" 
+                      [class.active]="utilisateur.estActif" 
+                      [class.inactive]="!utilisateur.estActif">
+                  {{ utilisateur.estActif ? 'OUI' : 'NON' }}
+                </span>
+              </td>
+              <td>{{ getUserRoleNames(utilisateur) }}</td>
+              <td>{{ utilisateur.dateCreation ? (utilisateur.dateCreation | date:'short') : '-' }}</td>
+              <td class="actions">
+                <button class="btn btn-sm btn-secondary" 
+                        (click)="openEditModal(utilisateur)"
+                        title="Modifier">
+                  <span>Modifier</span>
+                </button>
+                <button class="btn btn-sm btn-danger" 
+                        (click)="openDeleteModal(utilisateur.id, utilisateur.nomUtilisateur)"
+                        title="Supprimer">
+                  <span>Supprimer</span>
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal d'ajout/modification -->
+<div class="modal-overlay" *ngIf="showModal" (click)="closeModal()">
+  <div class="modal-container" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h3>{{ isEditMode ? 'Modifier l\'utilisateur' : 'Ajouter un utilisateur' }}</h3>
+      <button class="modal-close" (click)="closeModal()">&times;</button>
+    </div>
+    
+    <div class="modal-body">
+      <form [formGroup]="form" (ngSubmit)="save()">
+        <div class="form-group">
+          <label for="nomUtilisateur">Nom d'utilisateur *</label>
+          <input type="text" 
+                 id="nomUtilisateur" 
+                 formControlName="nomUtilisateur" 
+                 class="form-control"
+                 (input)="clearMessages()">
+          <div class="error-message" 
+               *ngIf="form.get('nomUtilisateur')?.invalid && form.get('nomUtilisateur')?.touched">
+            Ce champ est requis
+          </div>
+        </div>
+        
+        <div class="form-group" *ngIf="!isEditMode">
+          <label for="motDePasse">Mot de passe *</label>
+          <input type="password" 
+                 id="motDePasse" 
+                 formControlName="motDePasse" 
+                 class="form-control"
+                 (input)="clearMessages()">
+          <div class="error-message" 
+               *ngIf="form.get('motDePasse')?.invalid && form.get('motDePasse')?.touched">
+            Ce champ est requis
+          </div>
+        </div>
+        
+        <div class="form-group" *ngIf="!isEditMode">
+          <label for="confirmationMotDePasse">Confirmation du mot de passe *</label>
+          <input type="password" 
+                 id="confirmationMotDePasse" 
+                 formControlName="confirmationMotDePasse" 
+                 class="form-control"
+                 (input)="clearMessages()">
+          <div class="error-message" 
+               *ngIf="form.get('confirmationMotDePasse')?.invalid && form.get('confirmationMotDePasse')?.touched">
+            Ce champ est requis
+          </div>
+          <div class="error-message" 
+               *ngIf="passwordMismatchError">
+            Les mots de passe ne correspondent pas
+          </div>
+        </div>
+        
+        <div class="form-group">
+          <label for="codeBadge">Code badge *</label>
+          <input type="text" 
+                 id="codeBadge" 
+                 formControlName="codeBadge" 
+                 class="form-control"
+                 (input)="clearMessages()"
+                 required>
+          <div class="error-message" 
+               *ngIf="form.get('codeBadge')?.invalid && form.get('codeBadge')?.touched">
+            Ce champ est requis
+          </div>
+        </div>
+        
+        <div class="form-group">
+          <label for="telephone">Téléphone</label>
+          <input type="tel" 
+                 id="telephone" 
+                 formControlName="telephone" 
+                 class="form-control"
+                 (input)="clearMessages()">
+        </div>
+        
+        <div class="form-group">
+          <label for="bureau">Bureau</label>
+          <input type="text" 
+                 id="bureau" 
+                 formControlName="bureau" 
+                 class="form-control"
+                 (input)="clearMessages()">
+        </div>
+        
+        <div class="form-group" *ngIf="isEditMode">
+          <div class="checkbox-group">
+            <input type="checkbox" 
+                   id="estActif" 
+                   formControlName="estActif">
+            <label for="estActif">Utilisateur actif</label>
+          </div>
+        </div>
+        
+        <!-- Section Rôles -->
+        <div class="form-group">
+          <label>Rôles</label>
+          <div class="roles-section">
+            <div class="roles-grid" *ngIf="availableRoles.length > 0">
+              <div class="role-checkbox" *ngFor="let role of availableRoles">
+                <input type="checkbox" 
+                       [id]="'role_' + role.id"
+                       [checked]="isRoleSelected(role.id)"
+                       (change)="onRoleChange(role.id, $event.target.checked)">
+                <label [for]="'role_' + role.id">
+                  {{ role.nomRole }}
+                  <small *ngIf="role.description">{{ role.description }}</small>
+                </label>
+              </div>
+            </div>
+            <div *ngIf="availableRoles.length === 0" class="loading-roles">
+              Chargement des rôles...
+            </div>
+          </div>
+        </div>
+      </form>
+    </div>
+    
+    <div class="modal-footer">
+      <button type="button" class="btn btn-secondary" (click)="closeModal()">Annuler</button>
+      <button type="button" class="btn btn-primary" (click)="save()">
+        {{ isEditMode ? 'Enregistrer' : 'Créer' }}
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de confirmation de suppression -->
+<div class="modal-overlay" *ngIf="showDeleteModal" (click)="cancelDelete()">
+  <div class="modal-container modal-sm" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h3>Confirmation de suppression</h3>
+    </div>
+    
+    <div class="modal-body">
+      <p>Êtes-vous sûr de vouloir supprimer l'utilisateur <strong>{{ utilisateurToDelete?.nom }}</strong> ?</p>
+      <p class="warning">Cette action est irréversible.</p>
+    </div>
+    
+    <div class="modal-footer">
+      <button type="button" class="btn btn-secondary" (click)="cancelDelete()">Annuler</button>
+      <button type="button" class="btn btn-danger" (click)="confirmDelete()">Supprimer</button>
+    </div>
+  </div>
+</div>

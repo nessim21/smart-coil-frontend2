@@ -1,0 +1,155 @@
+<div class="page-container">
+  <div class="page-header">
+    <h2>
+      <i class="fas fa-undo"></i>
+      Gestion des demandes de retour
+    </h2>
+    <button class="btn btn-primary" (click)="refresh()">
+      <i class="fas fa-sync-alt"></i>
+      Actualiser
+    </button>
+  </div>
+
+  <!-- Messages -->
+  <div class="alert alert-success" *ngIf="successMessage">
+    <i class="fas fa-check-circle"></i>
+    {{ successMessage }}
+  </div>
+
+  <div class="alert alert-danger" *ngIf="errorMessage">
+    <i class="fas fa-exclamation-triangle"></i>
+    {{ errorMessage }}
+  </div>
+
+  <!-- Filtres -->
+  <div class="filters-section">
+    <div class="filter-row">
+      <div class="filter-group">
+        <label for="statutFilter">Statut:</label>
+        <select id="statutFilter" class="form-control" [(ngModel)]="statutFilter" (change)="applyFilters()">
+          <option value="">Tous les statuts</option>
+          <option value="GRIS">En attente</option>
+          <option value="ACTIF">Approuvées</option>
+          <option value="TERMINE">Terminées</option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label for="utilisateurFilter">Utilisateur:</label>
+        <input id="utilisateurFilter" type="text" class="form-control" 
+               [(ngModel)]="utilisateurFilter" (input)="applyFilters()" 
+               placeholder="ID utilisateur...">
+      </div>
+
+      <div class="filter-group">
+        <label>&nbsp;</label>
+        <button class="btn btn-secondary" (click)="statutFilter=''; utilisateurFilter=''; applyFilters()">
+          <i class="fas fa-times"></i>
+          Réinitialiser
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tableau des demandes de retour -->
+  <div class="table-container">
+    <div class="loading-spinner" *ngIf="isLoading">
+      <i class="fas fa-spinner fa-spin"></i>
+      Chargement...
+    </div>
+
+    <div class="no-data" *ngIf="!isLoading && filteredDemandes.length === 0">
+      <i class="fas fa-inbox"></i>
+      <p>Aucune demande de retour trouvée</p>
+    </div>
+
+    <table class="data-table" *ngIf="!isLoading && filteredDemandes.length > 0">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>ID Bobine</th>
+          <th>ID Demande</th>
+          <th>Utilisateur assigné</th>
+          <th>Statut</th>
+          <th>Date création</th>
+          <th>Date exécution</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let demande of filteredDemandes">
+          <td>{{ demande.id }}</td>
+          <td>{{ demande.bobineId }}</td>
+          <td>{{ demande.demandeId }}</td>
+          <td>{{ getNomUtilisateur(demande.utilisateurId) }}</td>
+          <td>
+            <span class="status-badge" [class]="getStatutClass(demande.statut)">
+              {{ getStatutLabel(demande.statut) }}
+            </span>
+          </td>
+          <td>{{ formatDate(demande.dateCreation) }}</td>
+          <td>{{ formatDate(demande.dateExecution) }}</td>
+          <td>
+            <div class="actions">
+              <button class="btn btn-primary btn-sm" 
+                      *ngIf="canExecute(demande)"
+                      (click)="openExecuteModal(demande)"
+                      title="Exécuter">
+                <i class="fas fa-play"></i>
+                Exécuter
+              </button>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+
+<!-- Modal d'exécution -->
+<div class="modal-overlay" *ngIf="showExecuteModal" (click)="closeExecuteModal()">
+  <div class="modal-container" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h5 class="modal-title">
+        <i class="fas fa-play-circle"></i>
+        Exécuter le retour
+      </h5>
+      <button type="button" class="btn-close" (click)="closeExecuteModal()">&times;</button>
+    </div>
+    
+    <div class="modal-body">
+      <div class="demande-info">
+        <p><strong>Demande #{{ selectedDemandeRetour?.id }}</strong></p>
+        <p>Bobine: {{ selectedDemandeRetour?.bobineId }}</p>
+        <p>Assigné à: {{ getNomUtilisateur(selectedDemandeRetour?.utilisateurId) }}</p>
+      </div>
+      
+      <form (ngSubmit)="executeDemandeRetour()">
+        <div class="form-group">
+          <label for="executeUtilisateurId">ID de l'alimentateur (optionnel):</label>
+          <input id="executeUtilisateurId" type="number" class="form-control" 
+                 [(ngModel)]="executeForm.utilisateurId" name="utilisateurId" 
+                 placeholder="ID de l'alimentateur...">
+        </div>
+        
+        <div class="form-group">
+          <label for="executeEmplacementId">Emplacement de retour (optionnel):</label>
+          <input id="executeEmplacementId" type="number" class="form-control" 
+                 [(ngModel)]="executeForm.emplacementRetourId" name="emplacementRetourId" 
+                 placeholder="ID de l'emplacement...">
+        </div>
+      </form>
+    </div>
+
+    <div class="modal-footer">
+      <button type="button" class="btn btn-secondary" (click)="closeExecuteModal()">
+        Annuler
+      </button>
+      <button type="button" class="btn btn-primary" (click)="executeDemandeRetour()">
+        <i class="fas fa-play"></i>
+        Exécuter
+      </button>
+    </div>
+  </div>
+</div>

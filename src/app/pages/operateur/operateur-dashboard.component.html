@@ -1,0 +1,527 @@
+<div class="page-container">
+  <div class="page-header">
+    <h1>Tableau de bord Opérateur</h1>
+    <p class="page-description" *ngIf="operateurNom">Bienvenue, {{ operateurNom }}</p>
+  </div>
+  
+  <!-- Messages -->
+  <div class="alert alert-success alert-dismissible" *ngIf="successMessage">
+    {{ successMessage }}
+    <button type="button" class="btn-close" (click)="clearMessages()"></button>
+  </div>
+  
+  <div class="alert alert-error alert-dismissible" *ngIf="errorMessage">
+    {{ errorMessage }}
+    <button type="button" class="btn-close" (click)="clearMessages()"></button>
+  </div>
+
+  <!-- Loading -->
+  <div class="loading-container" *ngIf="loading">
+    <div class="spinner"></div>
+    <p>Chargement de vos données...</p>
+  </div>
+
+  <!-- Debug Section -->
+  <div class="debug-section" style="background: #f0f0f0; padding: 10px; margin: 10px 0; border: 1px solid #ccc;">
+    <!-- Modal Demande Bobine Urgente -->
+    <div class="modal-overlay" *ngIf="showBesoinBobineModal" (click)="fermerFormulaireBesoinBobine()">
+      <div class="modal-content" (click)="$event.stopPropagation()">
+        <div class="modal-header">
+          <h3>Demander une Bobine - Demande Urgente</h3>
+          <button class="modal-close" (click)="fermerFormulaireBesoinBobine()">×</button>
+        </div>
+        
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="referenceBobine">Référence Bobine Requise:</label>
+            <input 
+              type="text" 
+              id="referenceBobine" 
+              class="form-control" 
+              [value]="besoinBobineForm.referenceBobine" 
+              readonly
+            >
+          </div>
+          
+          <div class="form-group">
+            <label for="ordreTravail">Ordre de Travail:</label>
+            <input 
+              type="text" 
+              id="ordreTravail" 
+              class="form-control" 
+              [value]="besoinBobineForm.ordreTravail" 
+              readonly
+            >
+          </div>
+          
+          <div class="form-group">
+            <label for="quantite">Quantité Requise:</label>
+            <input 
+              type="number" 
+              id="quantite" 
+              class="form-control" 
+              [(ngModel)]="besoinBobineForm.quantite" 
+              min="1"
+              placeholder="Quantité requise"
+            >
+          </div>
+          
+                    
+          <div class="alert alert-warning">
+            <strong>Attention:</strong> Cette demande sera marquée comme PRIORITE et apparaîtra dans le tableau de bord des administrateurs pour attribution urgente.
+          </div>
+        </div>
+        
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" (click)="fermerFormulaireBesoinBobine()">
+            Annuler
+          </button>
+          <button type="button" class="btn btn-primary" (click)="creerDemandePrioritaire()" [disabled]="isCreatingDemande">
+            <span *ngIf="!isCreatingDemande">Créer Demande Urgente</span>
+            <span *ngIf="isCreatingDemande">Création en cours...</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Succès -->
+    <div class="modal-overlay" *ngIf="showSuccessModal" (click)="fermerModalSucces()">
+      <div class="modal-content success-modal" (click)="$event.stopPropagation()">
+        <div class="modal-header">
+          <h3>Demande Créée avec Succès !</h3>
+          <button class="modal-close" (click)="fermerModalSucces()">×</button>
+        </div>
+        
+        <div class="modal-body">
+          <div class="success-icon">  
+            <div class="checkmark-circle">
+              <div class="checkmark"></div>
+            </div>
+          </div>
+          
+          <div class="success-message">
+            <h4>Demande urgente créée avec succès !</h4>
+            <p>Votre demande de bobine a été enregistrée et est maintenant visible par les administrateurs pour attribution urgente.</p>
+          </div>
+        </div>
+        
+        <div class="modal-footer">
+          <button type="button" class="btn btn-primary" (click)="fermerModalSucces()">
+            OK
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Informations Système -->
+    <div class="system-info-card">
+      <div class="system-info-header">
+        <div class="system-info-icon">
+          <i class="fas fa-info-circle"></i>
+        </div>
+        <div class="system-info-title">
+          <h3>Informations Système</h3>
+          <p>Vue d'ensemble de votre session</p>
+        </div>
+      </div>
+      
+      <div class="system-info-content">
+        <div class="info-grid">
+          <div class="info-item">
+            <div class="info-label">Opérateur</div>
+            <div class="info-value">{{ operateurNom || 'Non identifié' }}</div>
+          </div>
+          
+          <div class="info-item">
+            <div class="info-label">ID Opérateur</div>
+            <div class="info-value">#{{ operateurId || 'N/A' }}</div>
+          </div>
+          
+          <div class="info-item">
+            <div class="info-label">Ordres actifs</div>
+            <div class="info-value">{{ ordresTravail.length }}</div>
+          </div>
+          
+          <div class="info-item">
+            <div class="info-label">Demandes en cours</div>
+            <div class="info-value">{{ demandes.length }}</div>
+          </div>
+          
+          <div class="info-item">
+            <div class="info-label">Ordre en cours</div>
+            <div class="info-value">{{ ordreEnCours?.numeroOrdre || 'Aucun' }}</div>
+          </div>
+          
+          <div class="info-item">
+            <div class="info-label">Prochains ordres</div>
+            <div class="info-value">{{ prochainsOrdres.length }}</div>
+          </div>
+          
+                  </div>
+      </div>
+    </div>
+
+  <!-- Contenu principal -->
+  <div class="page-content" *ngIf="!loading">
+    
+    <!-- Ordre en cours -->
+    <div class="content-card">
+      <div class="card-header">
+        <h2>Ordre de travail en cours</h2>
+        <div class="card-actions">
+          <button class="btn btn-secondary btn-sm" (click)="refresh()">
+            <span>Actualiser</span>
+          </button>
+        </div>
+      </div>
+      
+      <div *ngIf="ordreEnCours" class="ordre-en-cours">
+        <div class="ordre-info">
+          <div class="ordre-header">
+            <h3>{{ ordreEnCours.numeroOrdre }}</h3>
+            <span class="status-badge" [class]="getStatutClass(ordreEnCours.statut)">
+              {{ formatStatut(ordreEnCours.statut) }}
+            </span>
+          </div>
+          
+          <div class="ordre-details">
+            <div class="detail-row">
+              <span class="label">Machine:</span>
+              <span class="value">{{ ordreEnCours.idMachine }}</span>
+            </div>
+            <div class="detail-row">
+              <span class="label">Référence bobine:</span>
+              <span class="value">{{ ordreEnCours.referenceBobine }}</span>
+            </div>
+            <div class="detail-row">
+              <span class="label">Quantité requise:</span>
+              <span class="value">{{ ordreEnCours.quantiteRequise }}</span>
+            </div>
+            <div class="detail-row">
+              <span class="label">Date création:</span>
+              <span class="value">{{ ordreEnCours.dateCreation | date:'dd/MM/yyyy HH:mm' }}</span>
+            </div>
+            <!-- Fake Timer - affiché seulement quand l'ordre est en cours -->
+            <div class="detail-row timer-row" *ngIf="ordreEnCours.statut === 'EN_COURS'">
+              <span class="label">Temps écoulé:</span>
+              <span class="value timer-display">{{ fakeTimer }}</span>
+            </div>
+          </div>
+          
+          <div class="ordre-actions">
+            <button class="btn btn-warning" (click)="ouvrirFormulaireBesoinBobine(ordreEnCours)">
+              <span>Besoin bobine</span>
+            </button>
+            
+            <!-- Bouton Démarrer - activé seulement si la demande est terminée -->
+            <button class="btn btn-success" 
+                    (click)="demarrerOrdre()" 
+                    *ngIf="ordreEnCours.statut === 'EN_ATTENTE' && peutDemarrerOrdre()">
+              <span>Démarrer</span>
+            </button>
+            
+            <!-- Bouton Démarrer grisé si la demande n'est pas terminée -->
+            <button class="btn btn-secondary" 
+                    (click)="afficherMessageAttenteBobine()"
+                    *ngIf="ordreEnCours.statut === 'EN_ATTENTE' && !peutDemarrerOrdre()"
+                    [disabled]="true">
+              <span>Démarrer</span>
+            </button>
+            
+            <button class="btn btn-primary" 
+                    (click)="terminerOrdre()" 
+                    *ngIf="ordreEnCours.statut === 'EN_COURS'">
+              <span>Terminer</span>
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      <div *ngIf="!ordreEnCours" class="no-ordre">
+        <div class="empty-state">
+          <i class="fas fa-inbox"></i>
+          <h3>Aucun ordre en cours</h3>
+          <p>Vous n'avez aucun ordre de travail actif pour le moment.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Prochains ordres -->
+    <div class="content-card">
+      <div class="card-header">
+        <h2>Prochains ordres de travail</h2>
+        <span class="badge">{{ prochainsOrdres.length }}</span>
+      </div>
+      
+      <div *ngIf="prochainsOrdres.length > 0" class="table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Numéro</th>
+              <th>Machine</th>
+              <th>Référence bobine</th>
+              <th>Quantité</th>
+              <th>Statut</th>
+              <th>Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let ordre of prochainsOrdres">
+              <td>{{ ordre.numeroOrdre }}</td>
+              <td>{{ ordre.idMachine }}</td>
+              <td>{{ ordre.referenceBobine }}</td>
+              <td>{{ ordre.quantiteRequise }}</td>
+              <td>
+                <span class="status-badge" [class]="getStatutClass(ordre.statut)">
+                  {{ formatStatut(ordre.statut) }}
+                </span>
+              </td>
+              <td>{{ ordre.dateCreation | date:'dd/MM/yyyy' }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      
+      <div *ngIf="prochainsOrdres.length === 0" class="no-data">
+        <div class="empty-state">
+          <i class="fas fa-clipboard-list"></i>
+          <h3>Aucun prochain ordre</h3>
+          <p>Tous vos ordres sont terminés ou vous n'avez pas d'ordres en attente.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Demandes associées -->
+    <div class="content-card">
+      <div class="card-header">
+        <h2>Demandes de prélèvement - Opérateur {{ operateurNom || 'N/A' }}</h2>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span class="badge">{{ demandesAssociees.length }}</span>
+          <button class="btn btn-sm btn-secondary" (click)="refreshDemandes()" title="Rafraîchir les demandes">
+            <i class="fas fa-sync-alt"></i>
+          </button>
+        </div>
+      </div>
+      
+      <div *ngIf="demandesAssociees.length > 0" class="table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Ordre de travail</th>
+              <th>Référence bobine</th>
+              <th>Priorité</th>
+              <th>Statut</th>
+              <th>Statut bobine</th>
+              <th>Alimentateur assigné</th>
+              <th>Date création</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let demande of demandesAssociees">
+              <td>
+                <div class="ordre-info">
+                  <div class="ordre-number">{{ getNumeroOrdreTravail(demande.ordreTravailId) }}</div>
+                  <div class="machine-name">{{ getMachineOrdreTravail(demande.ordreTravailId) }}</div>
+                </div>
+              </td>
+              <td>{{ demande.referenceBobine }}</td>
+              <td>
+                <span class="priority-badge" 
+                      [class]="demande.niveauPriorite === 'PRIORITAIRE' ? 'priority-high' : 'priority-normal'">
+                  {{ demande.niveauPriorite === 'PRIORITAIRE' ? 'Urgente' : 'Normale' }}
+                </span>
+              </td>
+              <td>
+                <span class="status-badge" [class]="getStatutClass(demande.statut)">
+                  {{ formatStatut(demande.statut) }}
+                </span>
+              </td>
+              <td>
+                <span class="status-badge" 
+                      [class]="getBobineStatusClass(demande.bobineId || 0)">
+                  {{ getBobineStatusText(demande.bobineId || 0) }}
+                </span>
+              </td>
+              <td>{{ getNomAlimentateur(demande.utilisateurAssigneId || 0) }}</td>
+              <td>{{ demande.dateCreation | date:'dd/MM/yyyy HH:mm' }}</td>
+              <td>
+                <div class="actions">
+                  <button class="btn btn-success btn-sm" 
+                          *ngIf="isBobinePrelevee(demande)"
+                          (click)="confirmerLivraison(demande)">
+                    <i class="fas fa-truck"></i>
+                    <span>Confirmer livraison</span>
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      
+      <div *ngIf="demandesAssociees.length === 0" class="no-data">
+        <div class="empty-state">
+          <i class="fas fa-box"></i>
+          <h3>Aucune demande</h3>
+          <p>Aucune demande de prélèvement associée à vos ordres.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Demandes de retour -->
+    <div class="content-card">
+      <div class="card-header">
+        <h2>Demandes de retour - Opérateur {{ operateurNom || 'N/A' }}</h2>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span class="badge">{{ demandesRetourOperateur.length }}</span>
+          <button class="btn btn-sm btn-secondary" (click)="refreshRetours()" title="Rafraîchir les demandes de retour">
+            <i class="fas fa-sync-alt"></i>
+          </button>
+        </div>
+      </div>
+      
+      <div *ngIf="demandesRetourOperateur.length > 0" class="table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Référence bobine</th>
+              <th>ID Demande</th>
+              <th>Statut</th>
+              <th>Date création</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let retour of demandesRetourOperateur">
+              <td>{{ retour.id }}</td>
+              <td>{{ getDemandeReference(retour.demandeId) }}</td>
+              <td>{{ retour.demandeId }}</td>
+              <td>
+                <span class="status-badge" [class]="getRetourStatutClass(retour.statut)">
+                  {{ getRetourStatutLabel(retour.statut) }}
+                </span>
+              </td>
+              <td>{{ retour.dateCreation | date:'dd/MM/yyyy HH:mm' }}</td>
+              <td>
+                <div class="actions">
+                  <button class="btn btn-sm btn-primary" (click)="viewRetourDetails(retour)" title="Voir détails">
+                    <i class="fas fa-eye"></i>
+                    <span>Détails</span>
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      
+      <div *ngIf="demandesRetourOperateur.length === 0" class="no-data">
+        <div class="empty-state">
+          <i class="fas fa-undo"></i>
+          <h3>Aucune demande de retour</h3>
+          <p>Vous n'avez aucune demande de retour associée à vos livraisons.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal d'attente de bobine -->
+<div class="modal-overlay" *ngIf="showAttenteBobineModal" (click)="fermerMessageAttenteBobine()">
+  <div class="modal-content modal-sm" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h3>⏳ En attente de la bobine</h3>
+      <button class="modal-close" (click)="fermerMessageAttenteBobine()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="message-attente">
+        <i class="fas fa-hourglass-half"></i>
+        <p>L'ordre de travail <strong>{{ ordreEnCours?.numeroOrdre }}</strong> attend la bobine pour pouvoir démarrer.</p>
+        <p>Veuillez patienter jusqu'à ce que la demande associée soit terminée.</p>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" (click)="fermerMessageAttenteBobine()">
+        Compris
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de détails de demande de retour -->
+<div class="modal-overlay" *ngIf="showRetourDetailsModal" (click)="closeRetourDetailsModal()">
+  <div class="modal-content modal-md" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h3>
+        <i class="fas fa-info-circle"></i>
+        Détails de la demande de retour #{{ selectedRetourDetails?.id }}
+      </h3>
+      <button class="modal-close" (click)="closeRetourDetailsModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="details-container" *ngIf="selectedRetourDetails">
+        <div class="detail-section">
+          <h4>Informations générales</h4>
+          <div class="detail-grid">
+            <div class="detail-item">
+              <label>ID Demande:</label>
+              <span>{{ selectedRetourDetails.demandeId }}</span>
+            </div>
+            <div class="detail-item">
+              <label>Référence bobine:</label>
+              <span>{{ getDemandeReference(selectedRetourDetails.demandeId) }}</span>
+            </div>
+            <div class="detail-item">
+              <label>Statut:</label>
+              <span class="status-badge" [class]="getRetourStatutClass(selectedRetourDetails.statut)">
+                {{ getRetourStatutLabel(selectedRetourDetails.statut) }}
+              </span>
+            </div>
+            <div class="detail-item">
+              <label>Date création:</label>
+              <span>{{ selectedRetourDetails.dateCreation | date:'dd/MM/yyyy HH:mm' }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="detail-section">
+          <h4>Assignation</h4>
+          <div class="detail-grid">
+            <div class="detail-item">
+              <label>Alimentateur:</label>
+              <span>{{ utilisateursMap[selectedRetourDetails.utilisateurId] || 'Non assigné' }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="detail-section" *ngIf="selectedRetourDetails.dateExecution">
+          <h4>Exécution</h4>
+          <div class="detail-grid">
+            <div class="detail-item">
+              <label>Date exécution:</label>
+              <span>{{ selectedRetourDetails.dateExecution | date:'dd/MM/yyyy HH:mm' }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="detail-section" *ngIf="selectedRetourDetails.dateTerminaison">
+          <h4>Terminaison</h4>
+          <div class="detail-grid">
+            <div class="detail-item">
+              <label>Date terminaison:</label>
+              <span>{{ selectedRetourDetails.dateTerminaison | date:'dd/MM/yyyy HH:mm' }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" (click)="closeRetourDetailsModal()">
+        Fermer
+      </button>
+    </div>
+  </div>
+</div>
+

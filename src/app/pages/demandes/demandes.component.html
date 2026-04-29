@@ -1,0 +1,604 @@
+<div class="page-container">
+  <div class="page-header">
+    <h1>Demandes en cours</h1>
+    <button class="btn btn-primary" (click)="openCreateModal()">
+      <span>+</span> Nouvelle demande
+    </button>
+  </div>
+
+  <!-- Messages de succès/erreur -->
+  <div class="alert alert-success" *ngIf="successMessage">
+    {{ successMessage }}
+  </div>
+
+  <div class="alert alert-danger" *ngIf="errorMessage">
+    {{ errorMessage }}
+  </div>
+
+  <!-- Filtres -->
+  <div class="filters-section">
+    <div class="filters-header">
+      <h3>Filtres</h3>
+    </div>
+    <div class="filters-grid">
+      <div class="filter-group">
+        <label for="statutFilter">Statut</label>
+        <select id="statutFilter" class="form-control" [(ngModel)]="statutFilter" (change)="applyFilters()">
+          <option value="">Tous les statuts</option>
+          <option *ngFor="let statut of statutsPossibles" [value]="statut">
+            {{ getStatutLabel(statut) }}
+          </option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label for="prioriteFilter">Priorité</label>
+        <select id="prioriteFilter" class="form-control" [(ngModel)]="prioriteFilter" (change)="applyFilters()">
+          <option value="">Toutes les priorités</option>
+          <option *ngFor="let priorite of prioritesPossibles" [value]="priorite">
+            {{ getPrioriteLabel(priorite) }}
+          </option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tableau des demandes -->
+  <div class="content-card">
+    <div class="card-body">
+      <!-- Indicateur de chargement -->
+      <div class="loading" *ngIf="isLoading">
+        <i class="fas fa-spinner fa-spin"></i>
+        Chargement des demandes...
+      </div>
+
+      <!-- Tableau -->
+      <table class="data-table" *ngIf="!isLoading">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Priorité</th>
+            <th>Machine</th>
+            <th>Statut</th>
+            <th>Statut bobine</th>
+            <th>Alimentateur assigné</th>
+            <th>Ordre lié</th>
+            <th>Date création</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngIf="filteredDemandes.length === 0">
+            <td colspan="9" class="text-center">
+              {{ demandes.length === 0 ? 'Aucune demande trouvée' : 'Aucun résultat pour les filtres appliqués' }}
+            </td>
+          </tr>
+          <tr *ngFor="let demande of filteredDemandes; trackBy: trackByDemandeId">
+            <td>{{ demande.id }}</td>
+            <td>
+              <span class="status-badge" [class]="getPrioriteClass(demande.niveauPriorite)">
+                {{ getPrioriteLabel(demande.niveauPriorite) }}
+              </span>
+            </td>
+            <td>{{ getMachineFromOrdre(demande.ordreTravailId) }}</td>
+            <td>
+              <span class="status-badge" [class]="getStatutClass(demande.statut)">
+                {{ getStatutLabel(demande.statut) }}
+              </span>
+            </td>
+            <td>
+              <span class="status-badge" 
+                    [class]="getBobineStatusClass(demande.bobineId || 0)">
+                {{ getBobineStatusText(demande.bobineId || 0) }}
+              </span>
+            </td>
+            <td>{{ getUtilisateurName(demande.utilisateurAssigneId) }}</td>
+            <td>{{ getOrdreNumero(demande.ordreTravailId) }}</td>
+            <td>{{ demande.dateCreation | date:'dd/MM/yyyy HH:mm' }}</td>
+            <td class="actions">
+              <button class="btn btn-sm btn-secondary" (click)="openEditModal(demande)" title="Modifier" *ngIf="canModifyDemande(demande)">
+                <span>Modifier</span>
+              </button>
+              <button class="btn btn-sm btn-primary" (click)="viewDetails(demande)" title="Voir détails" *ngIf="!canModifyDemande(demande)">
+                <span>Détails</span>
+              </button>
+              <button class="btn btn-sm btn-danger" (click)="openDeleteModal(demande)" title="Supprimer">
+                <span>Supprimer</span>
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Tableau des demandes terminées -->
+  <div class="content-card" style="margin-top: 2rem;">
+    <div class="card-body">
+      <div class="card-header">
+        <h2>Demandes terminées</h2>
+      </div>
+
+      <!-- Indicateur de chargement -->
+      <div class="loading" *ngIf="isLoadingTerminees">
+        <i class="fas fa-spinner fa-spin"></i>
+        Chargement des demandes terminées...
+      </div>
+
+      <!-- Tableau des demandes terminées -->
+      <table class="data-table" *ngIf="!isLoadingTerminees">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Priorité</th>
+            <th>Machine</th>
+            <th>Statut</th>
+            <th>Statut bobine</th>
+            <th>Alimentateur assigné</th>
+            <th>Ordre lié</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngIf="demandesTerminees.length === 0">
+            <td colspan="8" class="text-center">
+              Aucune demande terminée trouvée
+            </td>
+          </tr>
+          <tr *ngFor="let demande of demandesTerminees; trackBy: trackByDemandeId">
+            <td>{{ demande.id }}</td>
+            <td>
+              <span class="status-badge" [class]="getPrioriteClass(demande.niveauPriorite)">
+                {{ getPrioriteLabel(demande.niveauPriorite) }}
+              </span>
+            </td>
+            <td>{{ getMachineFromOrdre(demande.ordreTravailId) }}</td>
+            <td>
+              <span class="status-badge" [class]="getStatutClass(demande.statut)">
+                {{ getStatutLabel(demande.statut) }}
+              </span>
+            </td>
+            <td>
+              <span class="status-badge" 
+                    [class]="getBobineStatusClass(demande.bobineId || 0)">
+                {{ getBobineStatusText(demande.bobineId || 0) }}
+              </span>
+            </td>
+            <td>{{ getUtilisateurName(demande.utilisateurAssigneId) }}</td>
+            <td>{{ getOrdreNumero(demande.ordreTravailId) }}</td>
+            <td class="actions">
+              <button class="btn btn-sm btn-primary" (click)="viewDetails(demande)" title="Voir détails">
+                <span>Détails</span>
+              </button>
+              <button class="btn btn-sm btn-danger" (click)="openDeleteModal(demande)" title="Supprimer">
+                <span>Supprimer</span>
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Tableau des demandes de retour -->
+  <div class="content-card" style="margin-top: 2rem;">
+    <div class="card-body">
+      <div class="card-header">
+        <h2>Demandes retours</h2>
+      </div>
+
+      <!-- Indicateur de chargement -->
+      <div class="loading" *ngIf="isLoadingRetours">
+        <i class="fas fa-spinner fa-spin"></i>
+        Chargement des demandes de retour...
+      </div>
+
+      <!-- Tableau des demandes de retour -->
+      <table class="data-table" *ngIf="!isLoadingRetours">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>ID Bobine</th>
+            <th>demande org</th>
+            <th>Statut</th>
+            <th>Utilisateur assigné</th>
+            <th>Opérateur</th>
+            <th>Machine</th>
+            <th>Date création</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngIf="demandesRetours.length === 0">
+            <td colspan="10" class="text-center">
+              Aucune demande de retour trouvée
+            </td>
+          </tr>
+          <tr *ngFor="let retour of demandesRetours; trackBy: trackByRetourId" 
+              [class.row-disabled]="retour.statut === 'GRIS'"
+              [class.row-active]="retour.statut === 'ACTIF'">
+            <td>{{ retour.id }}</td>
+            <td>{{ retour.bobineId }}</td>
+            <td>{{ retour.demandeId }}</td>
+            <td>
+              <span class="status-badge" [class]="getRetourStatutClass(retour.statut)">
+                {{ getRetourStatutLabel(retour.statut) }}
+              </span>
+            </td>
+            <td>{{ getRetourUtilisateurName(retour.utilisateurId) }}</td>
+            <td>{{ getRetourOperateurNameFromDemande(retour) }}</td>
+            <td>{{ getRetourMachineFromDemande(retour) }}</td>
+            <td>{{ retour.dateCreation | date:'dd/MM/yyyy HH:mm' }}</td>
+            <td class="actions">
+              <button class="btn btn-sm btn-primary" (click)="viewRetourDetails(retour)" title="Voir détails">
+                <span>Détails</span>
+              </button>
+              <button class="btn btn-sm btn-warning" 
+                      *ngIf="retour.statut === 'ACTIF'"
+                      (click)="assignerRetour(retour)" 
+                      title="Assigner">
+                <span>Assigner</span>
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Modal création/modification -->
+<div class="modal-overlay" *ngIf="showModal" (click)="closeModal()">
+  <div class="modal-container" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h3>{{ isEditMode ? 'Modifier la demande' : 'Nouvelle demande' }}</h3>
+      <button class="modal-close" (click)="closeModal()">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    
+    <div class="modal-body">
+      <form (ngSubmit)="save()">
+        <!-- Work Order en attente (uniquement en création) -->
+        <div class="form-group" *ngIf="!isEditMode">
+          <label for="formOrdreTravailId">
+            Work Order en attente
+            <span class="text-danger">*</span>
+          </label>
+          <select id="formOrdreTravailId" 
+                  class="form-control" 
+                  [(ngModel)]="formOrdreTravailId" 
+                  name="formOrdreTravailId"
+                  required>
+            <option value="" disabled>Sélectionnez un work order en attente...</option>
+            <option *ngFor="let ordre of getOrdresTravailEnAttente()" 
+                    [value]="ordre.id">
+              #{{ ordre.numeroOrdre }} - {{ ordre.referenceBobine }} (Machine: {{ ordre.idMachine }})
+            </option>
+          </select>
+          <small class="form-text text-muted" *ngIf="getOrdresTravailEnAttente().length > 0">
+            Sélectionnez un work order en attente pour créer une demande
+          </small>
+          <div class="alert alert-warning" *ngIf="getOrdresTravailEnAttente().length === 0">
+            <i class="fas fa-exclamation-triangle"></i>
+            Aucun work order disponible pour la création de demande.<br>
+            <small>
+              Soit tous les work orders en attente sont déjà liés à des demandes, 
+              soit aucun work order en attente n'existe. 
+              Veuillez créer de nouveaux work orders en attente.
+            </small>
+          </div>
+        </div>
+
+        <!-- Work Order (affichage en modification) -->
+        <div class="form-group" *ngIf="isEditMode && selectedOrdreTravail">
+          <label>Work Order associé</label>
+          <div class="form-control-plaintext">
+            <strong>#{{ selectedOrdreTravail.numeroOrdre }}</strong> - 
+            {{ selectedOrdreTravail.referenceBobine }} 
+            (Machine: {{ selectedOrdreTravail.idMachine }})
+          </div>
+          <small class="form-text text-muted">
+            Le work order associé à cette demande ne peut pas être modifié
+          </small>
+        </div>
+
+        <!-- Alimentateur -->
+        <div class="form-group">
+          <label for="formAlimentateurId">
+            Alimentateur 
+            <span *ngIf="!isEditMode" class="text-muted">(optionnel)</span>
+          </label>
+          <select id="formAlimentateurId" 
+                  class="form-control" 
+                  [(ngModel)]="formAlimentateurId" 
+                  name="formAlimentateurId">
+            <option value="">
+              <span *ngIf="!isEditMode">Non assigné (création sans alimentateur)</span>
+              <span *ngIf="isEditMode">Non assigné (statut: Non affectée)</span>
+            </option>
+            <option *ngFor="let alimentateur of getAlimentateurs()" 
+                    [value]="alimentateur.id">
+              {{ alimentateur.nomUtilisateur }} ({{ alimentateur.codeBadge || 'N/A' }})
+            </option>
+          </select>
+          <small class="form-text text-muted">
+            <span *ngIf="!isEditMode">
+              Laissez vide pour créer la demande sans assigner d'alimentateur
+            </span>
+            <span *ngIf="isEditMode">
+              Le statut sera automatiquement mis à jour :<br>
+              - Avec alimentateur = "En cours"<br>
+              - Sans alimentateur = "Non affectée"
+            </span>
+          </small>
+        </div>
+
+        <!-- Priorité (masquée, valeur par défaut NORMAL) -->
+        <input type="hidden" [(ngModel)]="formPriorite" name="formPriorite" value="NORMAL">
+      </form>
+    </div>
+    
+    <div class="modal-footer">
+      <button type="button" class="btn btn-secondary" (click)="closeModal()">Annuler</button>
+      <button type="button" 
+              class="btn btn-primary" 
+              (click)="save()"
+              [disabled]="isCreating">
+        <span *ngIf="!isCreating">{{ isEditMode ? 'Enregistrer' : 'Créer' }}</span>
+        <span *ngIf="isCreating">
+          <i class="fas fa-spinner fa-spin"></i> 
+          {{ isEditMode ? 'Enregistrement...' : 'Création...' }}
+        </span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de confirmation de suppression -->
+<div class="modal-overlay" *ngIf="showConfirmModal" (click)="closeConfirmModal()">
+  <div class="modal-container modal-sm" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h3>Confirmation de suppression</h3>
+      <button class="modal-close" (click)="closeConfirmModal()">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    
+    <div class="modal-body">
+      <p>{{ confirmMessage }}</p>
+      <div class="warning">Cette action est irréversible.</div>
+    </div>
+    
+    <div class="modal-footer">
+      <button type="button" class="btn btn-secondary" (click)="closeConfirmModal()">Annuler</button>
+      <button type="button" class="btn btn-danger" (click)="confirmDelete()">Supprimer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal des détails de la demande -->
+<div class="modal-overlay" *ngIf="showDetailsModal" (click)="closeDetailsModal()">
+  <div class="modal-container modal-md" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h3>
+        <i class="fas fa-info-circle"></i>
+        Détails de la demande #{{ selectedDemandeForDetails?.id }}
+      </h3>
+      <button class="modal-close" (click)="closeDetailsModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="details-container" *ngIf="selectedDemandeForDetails">
+        <div class="detail-section">
+          <h4>Informations générales</h4>
+          <div class="detail-grid">
+            <div class="detail-item">
+              <label>ID Demande:</label>
+              <span>{{ selectedDemandeForDetails?.id }}</span>
+            </div>
+            <div class="detail-item">
+              <label>Référence bobine:</label>
+              <span>{{ selectedDemandeForDetails?.referenceBobine }}</span>
+            </div>
+            <div class="detail-item">
+              <label>Priorité:</label>
+              <span class="status-badge" [class]="getPrioriteClass(selectedDemandeForDetails?.niveauPriorite || 'NORMAL')">
+                {{ getPrioriteLabel(selectedDemandeForDetails?.niveauPriorite || 'NORMAL') }}
+              </span>
+            </div>
+            <div class="detail-item">
+              <label>Date création:</label>
+              <span>{{ selectedDemandeForDetails?.dateCreation | date:'dd/MM/yyyy HH:mm' }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="detail-section">
+          <h4>Statuts</h4>
+          <div class="detail-grid">
+            <div class="detail-item">
+              <label>Statut demande:</label>
+              <span class="status-badge" [class]="getStatutClass(selectedDemandeForDetails?.statut || 'NON_AFFECTEE')">
+                {{ getStatutLabel(selectedDemandeForDetails?.statut || 'NON_AFFECTEE') }}
+              </span>
+            </div>
+            <div class="detail-item">
+              <label>Statut bobine:</label>
+              <span class="status-badge" 
+                    [class]="getBobineStatusClass(selectedDemandeForDetails?.bobineId || 0)">
+                {{ getBobineStatusText(selectedDemandeForDetails?.bobineId || 0) }}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div class="detail-section">
+          <h4>Assignation</h4>
+          <div class="detail-grid">
+            <div class="detail-item">
+              <label>Machine:</label>
+              <span>{{ getMachineFromOrdre(selectedDemandeForDetails?.ordreTravailId || 0) }}</span>
+            </div>
+            <div class="detail-item">
+              <label>Alimentateur:</label>
+              <span>{{ getUtilisateurName(selectedDemandeForDetails?.utilisateurAssigneId) }}</span>
+            </div>
+            <div class="detail-item">
+              <label>Ordre de travail:</label>
+              <span>{{ getOrdreNumero(selectedDemandeForDetails?.ordreTravailId || 0) }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="detail-section" *ngIf="selectedDemandeForDetails?.dateTerminaison">
+          <h4>Terminaison</h4>
+          <div class="detail-grid">
+            <div class="detail-item">
+              <label>Date terminaison:</label>
+              <span>{{ selectedDemandeForDetails?.dateTerminaison | date:'dd/MM/yyyy HH:mm' }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" (click)="closeDetailsModal()">
+        Fermer
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal des détails de la demande de retour -->
+<div class="modal-overlay" *ngIf="showRetourDetailsModal" (click)="closeRetourDetailsModal()">
+  <div class="modal-container modal-md" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h3>
+        <i class="fas fa-info-circle"></i>
+        Détails de la demande de retour #{{ selectedRetourForDetails?.id }}
+      </h3>
+      <button class="modal-close" (click)="closeRetourDetailsModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="details-container" *ngIf="selectedRetourForDetails">
+        <div class="detail-section">
+          <h4>Informations générales</h4>
+          <div class="detail-grid">
+            <div class="detail-item">
+              <label>ID Retour:</label>
+              <span>{{ selectedRetourForDetails?.id }}</span>
+            </div>
+            <div class="detail-item">
+              <label>ID Bobine:</label>
+              <span>{{ selectedRetourForDetails?.bobineId }}</span>
+            </div>
+            <div class="detail-item">
+              <label>ID Demande originale:</label>
+              <span>{{ selectedRetourForDetails?.demandeId }}</span>
+            </div>
+            <div class="detail-item">
+              <label>Statut:</label>
+              <span class="status-badge" [class]="getRetourStatutClass(selectedRetourForDetails?.statut || 'GRIS')">
+                {{ getRetourStatutLabel(selectedRetourForDetails?.statut || 'GRIS') }}
+              </span>
+            </div>
+            <div class="detail-item">
+              <label>Date création:</label>
+              <span>{{ selectedRetourForDetails?.dateCreation | date:'dd/MM/yyyy HH:mm' }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="detail-section">
+          <h4>Assignation</h4>
+          <div class="detail-grid">
+            <div class="detail-item">
+              <label>Alimentateur:</label>
+              <span>{{ getRetourUtilisateurName(selectedRetourForDetails?.utilisateurId) }}</span>
+            </div>
+            <div class="detail-item">
+              <label>Opérateur:</label>
+              <span>{{ getRetourOperateurNameFromDemande(selectedRetourForDetails) }}</span>
+            </div>
+            <div class="detail-item">
+              <label>Machine:</label>
+              <span>{{ getRetourMachineFromDemande(selectedRetourForDetails) }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="detail-section" *ngIf="selectedRetourForDetails?.dateExecution">
+          <h4>Exécution</h4>
+          <div class="detail-grid">
+            <div class="detail-item">
+              <label>Date exécution:</label>
+              <span>{{ selectedRetourForDetails?.dateExecution | date:'dd/MM/yyyy HH:mm' }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="detail-section" *ngIf="selectedRetourForDetails?.dateTerminaison">
+          <h4>Terminaison</h4>
+          <div class="detail-grid">
+            <div class="detail-item">
+              <label>Date terminaison:</label>
+              <span>{{ selectedRetourForDetails?.dateTerminaison | date:'dd/MM/yyyy HH:mm' }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" (click)="closeRetourDetailsModal()">
+        Fermer
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal d'assignation -->
+<div class="modal-overlay" *ngIf="showAssignationModal" (click)="annulerAssignation()">
+  <div class="modal-container" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h3>Assigner la demande de retour #{{ selectedRetour?.id }}</h3>
+      <button class="modal-close" (click)="annulerAssignation()">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label for="utilisateur-select">Sélectionner un utilisateur:</label>
+        <select 
+          id="utilisateur-select" 
+          class="form-control" 
+          [(ngModel)]="selectedUtilisateurId">
+          <option [ngValue]="null">Non assigné</option>
+          <option *ngFor="let utilisateur of utilisateursDisponibles" 
+                  [ngValue]="utilisateur.id">
+            {{ utilisateur.nomUtilisateur }} ({{ utilisateur.codeBadge || 'N/A' }})
+          </option>
+        </select>
+        <small class="form-text text-muted">
+          Les utilisateurs disponibles sont les ADMIN et ALIMENTATEUR uniquement.
+        </small>
+      </div>
+      
+      <div *ngIf="loadingUtilisateurs" class="loading">
+        <i class="fas fa-spinner fa-spin"></i>
+        Chargement des utilisateurs...
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" (click)="annulerAssignation()">
+        <i class="fas fa-times"></i>
+        Annuler
+      </button>
+      <button class="btn btn-warning" 
+              (click)="confirmerAssignation()"
+              [disabled]="loadingUtilisateurs">
+        <i class="fas fa-user-plus"></i>
+        Assigner
+      </button>
+    </div>
+  </div>
+</div>
