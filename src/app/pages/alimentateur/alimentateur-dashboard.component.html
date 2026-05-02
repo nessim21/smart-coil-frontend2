@@ -329,7 +329,7 @@
         </select>
       </div>
       
-      <div class="stock-grid-container" *ngIf="!loading && grille.length > 0">
+      <div class="stock-grid-container" *ngIf="grille.length > 0">
         <div class="grid-info">
           <span>Zone: {{ selectedZone }} | {{ grille.length }}×{{ grille[0]?.length || 0 }}</span>
         </div>
@@ -368,7 +368,7 @@
         </div>
       </div>
       
-      <div *ngIf="loading" class="loading-message">
+      <div *ngIf="loading && selectedZone" class="loading-message">
         <i class="fas fa-spinner fa-spin"></i>
         <p>Chargement de la grille de stockage...</p>
       </div>
@@ -544,16 +544,14 @@
   <div class="modal-container" (click)="$event.stopPropagation()">
     <div class="modal-header">
       <h3>Prélever la bobine</h3>
-      <button class="btn-close" (click)="closePrelevementModal()">&times;</button>
     </div>
     <div class="modal-body">
       <div class="form-group">
-        <label for="bobineId">ID de la bobine:</label>
+        <label for="bobineId">Scanner la bobine:</label>
         <input type="number" id="bobineId" [(ngModel)]="prelevementForm.bobineId" class="form-control" readonly>
-        <small class="form-text">ID de la bobine à prélever pour la demande #{{ selectedDemandeForPrelevement?.id }}</small>
       </div>
       <div class="form-group">
-        <label>Emplacement actuel:</label>
+        <label>Scanner emplacement:</label>
         <div class="emplacement-info">
           <div class="emplacement-details">
             <div class="emplacement-id">
@@ -563,12 +561,7 @@
               <strong>Coordonnées:</strong> {{ prelevementEmplacementCoordonnees || 'Non trouvé' }}
             </div>
           </div>
-          <div class="emplacement-message">
-            <i class="fas fa-info-circle"></i>
-            <span>Cet emplacement sera automatiquement libéré lors du prélèvement</span>
           </div>
-        </div>
-        <small class="form-text">La bobine sera retirée de son emplacement actuel</small>
       </div>
     </div>
     <div class="modal-footer">

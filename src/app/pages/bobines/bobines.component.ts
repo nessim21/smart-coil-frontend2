@@ -224,7 +224,9 @@ export class Bobines implements OnInit {
           this.loadBobines();
           this.loadEmplacementsVides(); // Recharger les emplacements pour la grille
           
-          setTimeout(() => this.closeModal(), 1500);
+          // Fermer le modal immédiatement et forcer la détection de changement
+          this.closeModal();
+          this.cdr.detectChanges();
         },
         error: (err) => {
           console.error('Erreur lors de la modification:', err);
@@ -261,7 +263,10 @@ export class Bobines implements OnInit {
           this.successMessage = 'Bobine créée avec succès';
           this.loadBobines();
           this.loadEmplacementsVides(); // Recharger les emplacements
-          setTimeout(() => this.closeModal(), 1500);
+          
+          // Fermer le modal immédiatement et forcer la détection de changement
+          this.closeModal();
+          this.cdr.detectChanges();
         },
         error: (err) => {
           this.errorMessage = 'Erreur lors de la création de la bobine';

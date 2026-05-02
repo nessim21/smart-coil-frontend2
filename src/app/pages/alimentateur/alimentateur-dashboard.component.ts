@@ -565,6 +565,7 @@ export class AlimentateurDashboard implements OnInit {
         if (bobinesLoaded) {
           this.construireGrille();
           this.loading = false;
+          this.cdr.detectChanges(); // Forcer la mise à jour
         }
       },
       error: (err) => {
@@ -580,6 +581,7 @@ export class AlimentateurDashboard implements OnInit {
         if (emplacementsLoaded) {
           this.construireGrille();
           this.loading = false;
+          this.cdr.detectChanges(); // Forcer la mise à jour
         }
       },
       error: (err) => {
@@ -623,7 +625,9 @@ export class AlimentateurDashboard implements OnInit {
 
   // Changer de zone
   onZoneChange(): void {
+    console.log('Changement de zone vers:', this.selectedZone);
     this.loadGrille();
+    this.cdr.detectChanges(); // Forcer la mise à jour immédiate
   }
 
   // Obtenir la couleur d'une cellule

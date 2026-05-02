@@ -168,11 +168,6 @@
     <div class="content-card">
       <div class="card-header">
         <h2>Ordre de travail en cours</h2>
-        <div class="card-actions">
-          <button class="btn btn-secondary btn-sm" (click)="refresh()">
-            <span>Actualiser</span>
-          </button>
-        </div>
       </div>
       
       <div *ngIf="ordreEnCours" class="ordre-en-cours">
@@ -297,9 +292,6 @@
         <h2>Demandes de prélèvement - Opérateur {{ operateurNom || 'N/A' }}</h2>
         <div style="display: flex; align-items: center; gap: 10px;">
           <span class="badge">{{ demandesAssociees.length }}</span>
-          <button class="btn btn-sm btn-secondary" (click)="refreshDemandes()" title="Rafraîchir les demandes">
-            <i class="fas fa-sync-alt"></i>
-          </button>
         </div>
       </div>
       
@@ -375,9 +367,6 @@
         <h2>Demandes de retour - Opérateur {{ operateurNom || 'N/A' }}</h2>
         <div style="display: flex; align-items: center; gap: 10px;">
           <span class="badge">{{ demandesRetourOperateur.length }}</span>
-          <button class="btn btn-sm btn-secondary" (click)="refreshRetours()" title="Rafraîchir les demandes de retour">
-            <i class="fas fa-sync-alt"></i>
-          </button>
         </div>
       </div>
       
