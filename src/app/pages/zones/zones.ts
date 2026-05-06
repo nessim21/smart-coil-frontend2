@@ -83,13 +83,13 @@ export class Zones implements OnInit {
         this.zonesFiltrees = data;
         this.loading = false;
         console.log('Zones chargées:', data);
-        this.cdr.detectChanges(); // Forcer la détection de changement
+        this.cdr.detectChanges(); 
       },
       error: (err) => {
         console.error('Erreur lors du chargement des zones:', err);
         this.loading = false;
         this.errorMessage = 'Erreur lors du chargement des zones';
-        this.cdr.detectChanges(); // Forcer la détection de changement
+        this.cdr.detectChanges(); 
       }
     });
   }
@@ -133,23 +133,7 @@ export class Zones implements OnInit {
     this.successMessage = null;
   }
 
-  generateZoneId(): string {
-    // Générer un ID de zone unique (lettre + nombre)
-    const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    const numbers = '0123456789';
-    let id = '';
-    
-    // Première lettre (A-Z)
-    id += letters.charAt(Math.floor(Math.random() * letters.length));
-    
-    // Deux chiffres (00-99)
-    for (let i = 0; i < 2; i++) {
-      id += numbers.charAt(Math.floor(Math.random() * numbers.length));
-    }
-    
-    return id;
-  }
-
+  
   save(): void {
     if (this.form.invalid) {
       this.errorMessage = 'Veuillez remplir tous les champs obligatoires';
@@ -341,10 +325,11 @@ export class Zones implements OnInit {
           console.error('Error:', err.error);
           console.error('Message:', err.message);
           
-          // Si erreur 500 de contrainte, proposer de désactiver la zone
+          // Si erreur 500 de contrainte, afficher un message d'erreur clair
           if (err.status === 500 && err.error?.toString().includes('FK_emplacement_zone')) {
-            console.log('Contrainte de clé étrangère détectée, désactivation de la zone...');
-            this.disableZoneInstead();
+            console.log('Contrainte de clé étrangère détectée, impossible de supprimer la zone...');
+            this.errorMessage = `Impossible de supprimer la zone "${this.zoneToDelete!.nom}" car des emplacements sont encore associés. Veuillez d'abord supprimer tous les emplacements de cette zone.`;
+            this.cancelDelete();
           } else {
             this.errorMessage = 'Erreur lors de la suppression de la zone';
             this.cancelDelete();
@@ -354,23 +339,7 @@ export class Zones implements OnInit {
     }
   }
 
-  // Désactiver la zone au lieu de la supprimer (solution de contournement)
-  disableZoneInstead(): void {
-    if (this.zoneToDelete) {
-      console.log('=== DÉSACTIVATION DE LA ZONE (CONTOURNEMENT) ===');
-      console.log('Désactivation de la zone car la suppression échoue à cause des contraintes de clé étrangère');
-      
-      // Simplement afficher un message d'information et fermer le modal
-      this.successMessage = `Zone "${this.zoneToDelete!.nom}" ne peut pas être supprimée à cause des contraintes de base de données. Les emplacements ont été désactivés. Contactez l'administrateur pour supprimer complètement la zone.`;
-      this.loadZones();
-      this.cancelDelete();
-      
-      console.log('=== CONTOURNEMENT TERMINÉ ===');
-      console.log('-> Zone conservée mais emplacements désactivés');
-      console.log('-> Message d\'information affiché à l\'utilisateur');
-    }
-  }
-
+  
   // Supprimer les emplacements un par un
   deleteEmplacementsIndividually(emplacements: EmplacementStockage[], codeZone: string): void {
     let deletedCount = 0;
